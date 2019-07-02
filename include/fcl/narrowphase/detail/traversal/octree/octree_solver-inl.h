@@ -56,7 +56,8 @@ OcTreeSolver<NarrowPhaseSolver>::OcTreeSolver(
     crequest(nullptr),
     drequest(nullptr),
     cresult(nullptr),
-    dresult(nullptr)
+    dresult(nullptr),
+    distance_error_threshold(std::numeric_limits<S>::min())
 {
   // Do nothing
 }
@@ -130,16 +131,29 @@ void OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistance(
   drequest = &request_;
   dresult = &result_;
 
+  DistanceResult<S> lower_bound_req;
+  dresult = &lower_bound_req;
+  OcTreeMeshLowerBoundDistanceRecurse(tree1, tree1->getRoot(), tree1->getRootBV(),
+                            tree2, 0,
+                            tf1, tf2);
+  distance_error_threshold = lower_bound_req.min_distance * (1.0 + request_.rel_err);
+  distance_error_threshold = std::max(distance_error_threshold, lower_bound_req.min_distance + request_.abs_err);
+  dresult = &result_;
+
+#if 0
   if (!OcTreeMeshUpperBoundDistanceRecurse(tree1, tree1->getRoot(), tree1->getRootBV(),
                             tree2, 0,
                             tf1, tf2))
   {
+#endif
 #if 1
   OcTreeMeshDistanceRecurse(tree1, tree1->getRoot(), tree1->getRootBV(),
                             tree2, 0,
                             tf1, tf2);
 #endif
+#if 0
   }
+#endif
 }
 
 //==============================================================================
@@ -500,6 +514,151 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeShapeIntersectRecurse(const OcTree<S
 
 template <typename NarrowPhaseSolver>
 template <typename BV>
+bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshLowerBoundDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
+                               const BVHModel<BV>* tree2, int root2,
+                               const Transform3<S>& tf1, const Transform3<S>& tf2) const
+{
+  if(!tree1->nodeHasChildren(root1) && tree2->getBV(root2).isLeaf())
+  {
+    if(tree1->isNodeOccupied(root1))
+    {
+      S dist;
+      {
+        AABB<S> aabb2;
+        const BV& bv2 = tree2->getBV(root2).bv;
+        convertBV(bv2, tf2, aabb2);
+        AABB<S> aabb1;
+        convertBV(bv1, tf1, aabb1);
+        S d_lower_bound = aabb1.distance(aabb2);
+//        S d_upper_bound = (bv1.center() - bv2.center()).norm() - bv1.width()/2;
+//        S d_upper_bound = (aabb1.center() - aabb2.center()).norm() - aabb1.width()/2;
+//        S d_upper_bound = d_lower_bound + aabb2.radius()/2;
+        dist = d_lower_bound;
+//        dist = d_lower_bound;
+      }
+#if 0
+
+      Box<S> box;
+      Transform3<S> box_tf;
+      constructBox(bv1, tf1, box, box_tf);
+
+#endif
+      int primitive_id = tree2->getBV(root2).primitiveId();
+#if 0
+      const Triangle& tri_id = tree2->tri_indices[primitive_id];
+      const Vector3<S>& p1 = tree2->vertices[tri_id[0]];
+      const Vector3<S>& p2 = tree2->vertices[tri_id[1]];
+      const Vector3<S>& p3 = tree2->vertices[tri_id[2]];
+
+      S dist;
+      Vector3<S> closest_p1, closest_p2;
+      solver->shapeTriangleDistance(box, box_tf, p1, p2, p3, tf2, &dist, &closest_p1, &closest_p2);
+#endif
+      dresult->update(dist, tree1, tree2, root1 - tree1->getRoot(), primitive_id);
+
+      return drequest->isSatisfied(*dresult);
+    }
+    else
+      return false;
+  }
+
+  if(!tree1->isNodeOccupied(root1)) return false;
+
+  if(tree2->getBV(root2).isLeaf() || (tree1->nodeHasChildren(root1) && (bv1.size() > tree2->getBV(root2).bv.size())))
+  {
+    int nchildren = 0;
+    const typename OcTree<S>::OcTreeNode* children[8];
+    AABB<S> child_bvs[8];
+    S distances[8];
+    S min_distance = std::numeric_limits<S>::max();
+    S next_min;
+    AABB<S> aabb2;
+    convertBV(tree2->getBV(root2).bv, tf2, aabb2);
+    for(unsigned int i = 0; i < 8; ++i)
+    {
+      if(tree1->nodeChildExists(root1, i))
+      {
+        const typename OcTree<S>::OcTreeNode* child = tree1->getNodeChild(root1, i);
+        if(tree1->isNodeOccupied(child))
+        {
+          children[nchildren] = child;
+          computeChildBV(bv1, i, child_bvs[nchildren]);
+          AABB<S> aabb1;
+          convertBV(child_bvs[nchildren], tf1, aabb1);
+          distances[nchildren] = aabb1.distance(aabb2);
+          if (distances[nchildren] < min_distance)
+          {
+            min_distance = distances[nchildren];
+          }
+          nchildren++;
+        }
+      }
+    }
+    // Visit the octree from closest to furthest and quit early when we have
+    // crossed the result min distance
+    while(min_distance < dresult->min_distance)
+    {
+      next_min = std::numeric_limits<S>::max();
+      for(unsigned int i = 0; i < nchildren; ++i)
+      {
+        if(distances[i] == min_distance)
+        {
+          if(distances[i] < dresult->min_distance)
+          {
+            if(OcTreeMeshLowerBoundDistanceRecurse(tree1, children[i], child_bvs[i], tree2, root2, tf1, tf2))
+              return true;
+          }
+          else
+          {
+            break;
+          }
+        }
+        else if(distances[i] > min_distance)
+        {
+          if(distances[i] < next_min)
+          {
+            next_min = distances[i];
+          }
+        }
+        else
+        {
+          // an already visited spot on a previous iteration
+        }
+      }
+      min_distance = next_min;
+    }
+  }
+  else
+  {
+    S d;
+    AABB<S> aabb1, aabb2;
+    convertBV(bv1, tf1, aabb1);
+    int child = tree2->getBV(root2).leftChild();
+    convertBV(tree2->getBV(child).bv, tf2, aabb2);
+    d = aabb1.distance(aabb2);
+
+    if(d < dresult->min_distance)
+    {
+      if(OcTreeMeshLowerBoundDistanceRecurse(tree1, root1, bv1, tree2, child, tf1, tf2))
+        return true;
+    }
+
+    child = tree2->getBV(root2).rightChild();
+    convertBV(tree2->getBV(child).bv, tf2, aabb2);
+    d = aabb1.distance(aabb2);
+
+    if(d < dresult->min_distance)
+    {
+      if(OcTreeMeshLowerBoundDistanceRecurse(tree1, root1, bv1, tree2, child, tf1, tf2))
+        return true;
+    }
+  }
+
+  return false;
+}
+
+template <typename NarrowPhaseSolver>
+template <typename BV>
 bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshUpperBoundDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                const BVHModel<BV>* tree2, int root2,
                                const Transform3<S>& tf1, const Transform3<S>& tf2) const
@@ -642,152 +801,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshUpperBoundDistanceRecurse(const 
 
   return false;
 }
-template <typename NarrowPhaseSolver>
-template <typename BV>
-bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceFindCandidatesRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
-                               const BVHModel<BV>* tree2, int root2,
-                               const Transform3<S>& tf1, const Transform3<S>& tf2,
-                               std::multimap<S, ) const
-{
-  if(!tree1->nodeHasChildren(root1) && tree2->getBV(root2).isLeaf())
-  {
-    if(tree1->isNodeOccupied(root1))
-    {
-      S dist;
-      {
-        AABB<S> aabb2;
-        const BV& bv2 = tree2->getBV(root2).bv;
-        convertBV(bv2, tf2, aabb2);
-        AABB<S> aabb1;
-        convertBV(bv1, tf1, aabb1);
-        dist = aabb1.distance(aabb2);
-//        S d_upper_bound = (bv1.center() - bv2.center()).norm() - bv1.width()/2;
-//        S d_upper_bound = (aabb1.center() - aabb2.center()).norm() - aabb1.width()/2;
-        S d_upper_bound = d_lower_bound + aabb2.radius()/2;
-        dist = d_upper_bound;
-//        dist = d_lower_bound;
-      }
-      candidate_map.insert(
-#if 0
 
-      Box<S> box;
-      Transform3<S> box_tf;
-      constructBox(bv1, tf1, box, box_tf);
-
-#endif
-      int primitive_id = tree2->getBV(root2).primitiveId();
-#if 0
-      const Triangle& tri_id = tree2->tri_indices[primitive_id];
-      const Vector3<S>& p1 = tree2->vertices[tri_id[0]];
-      const Vector3<S>& p2 = tree2->vertices[tri_id[1]];
-      const Vector3<S>& p3 = tree2->vertices[tri_id[2]];
-
-      S dist;
-      Vector3<S> closest_p1, closest_p2;
-      solver->shapeTriangleDistance(box, box_tf, p1, p2, p3, tf2, &dist, &closest_p1, &closest_p2);
-#endif
-      dresult->update(dist, tree1, tree2, root1 - tree1->getRoot(), primitive_id);
-
-      return drequest->isSatisfied(*dresult);
-    }
-    else
-      return false;
-  }
-
-  if(!tree1->isNodeOccupied(root1)) return false;
-
-  if(tree2->getBV(root2).isLeaf() || (tree1->nodeHasChildren(root1) && (bv1.size() > tree2->getBV(root2).bv.size())))
-  {
-    int nchildren = 0;
-    const typename OcTree<S>::OcTreeNode* children[8];
-    AABB<S> child_bvs[8];
-    S distances[8];
-    S min_distance = std::numeric_limits<S>::max();
-    S next_min;
-    AABB<S> aabb2;
-    convertBV(tree2->getBV(root2).bv, tf2, aabb2);
-    for(unsigned int i = 0; i < 8; ++i)
-    {
-      if(tree1->nodeChildExists(root1, i))
-      {
-        const typename OcTree<S>::OcTreeNode* child = tree1->getNodeChild(root1, i);
-        if(tree1->isNodeOccupied(child))
-        {
-          children[nchildren] = child;
-          computeChildBV(bv1, i, child_bvs[nchildren]);
-          AABB<S> aabb1;
-          convertBV(child_bvs[nchildren], tf1, aabb1);
-          distances[nchildren] = aabb1.distance(aabb2) + aabb2.radius()/2;
-          if (distances[nchildren] < min_distance)
-          {
-            min_distance = distances[nchildren];
-          }
-          nchildren++;
-        }
-      }
-    }
-    // Visit the octree from closest to furthest and quit early when we have
-    // crossed the result min distance
-    while(min_distance < dresult->min_distance)
-    {
-      next_min = std::numeric_limits<S>::max();
-      for(unsigned int i = 0; i < nchildren; ++i)
-      {
-        if(distances[i] == min_distance)
-        {
-          if(distances[i] < dresult->min_distance)
-          {
-            if(OcTreeMeshUpperBoundDistanceRecurse(tree1, children[i], child_bvs[i], tree2, root2, tf1, tf2))
-              return true;
-          }
-          else
-          {
-            break;
-          }
-        }
-        else if(distances[i] > min_distance)
-        {
-          if(distances[i] < next_min)
-          {
-            next_min = distances[i];
-          }
-        }
-        else
-        {
-          // an already visited spot on a previous iteration
-        }
-      }
-      min_distance = next_min;
-    }
-  }
-  else
-  {
-    S d;
-    AABB<S> aabb1, aabb2;
-    convertBV(bv1, tf1, aabb1);
-    int child = tree2->getBV(root2).leftChild();
-    convertBV(tree2->getBV(child).bv, tf2, aabb2);
-    d = aabb1.distance(aabb2);
-
-    if(d < dresult->min_distance)
-    {
-      if(OcTreeMeshUpperBoundDistanceRecurse(tree1, root1, bv1, tree2, child, tf1, tf2))
-        return true;
-    }
-
-    child = tree2->getBV(root2).rightChild();
-    convertBV(tree2->getBV(child).bv, tf2, aabb2);
-    d = aabb1.distance(aabb2);
-
-    if(d < dresult->min_distance)
-    {
-      if(OcTreeMeshUpperBoundDistanceRecurse(tree1, root1, bv1, tree2, child, tf1, tf2))
-        return true;
-    }
-  }
-
-  return false;
-}
 //==============================================================================
 template <typename NarrowPhaseSolver>
 template <typename BV>
@@ -835,6 +849,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
 #endif
       dresult->update(dist, tree1, tree2, root1 - tree1->getRoot(), primitive_id);
 
+      if (dist < distance_error_threshold) return true;
       return drequest->isSatisfied(*dresult);
     }
     else
