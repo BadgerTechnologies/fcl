@@ -154,6 +154,27 @@ private:
                                    const Transform3<S>& tf1, const Transform3<S>& tf2) const;
 
   template <typename BV>
+  bool OcTreeMeshUpperBoundDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
+                                 const BVHModel<BV>* tree2, int root2,
+                                 const Transform3<S>& tf1, const Transform3<S>& tf2) const;
+  template <typename BV>
+  struct OcTreeMeshDistanceCandidate
+  {
+    const OcTree<S>* tree1;
+    const typename OcTree<S>::OcTreeNode* leaf1;
+    const BVHModel<BV>* tree2;
+    int leaf2;
+    const typename OcTree<S>::OcTreeNode* leaf1;
+    const Transform3<S>& tf1;
+    const Transform3<S>& tf2;
+  }
+  using OcTreeMeshDistanceCandidateMultiMap = std::multimap<S, OcTreeMeshDistanceCandidate>;
+  template <typename BV>
+  bool OcTreeMeshDistanceFindCandidatesRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
+                                 const BVHModel<BV>* tree2, int root2,
+                                 const Transform3<S>& tf1, const Transform3<S>& tf2,
+                                 OcTreeMeshDistanceCandidateMultiMap* candidate_map) const;
+  template <typename BV>
   bool OcTreeMeshDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                  const BVHModel<BV>* tree2, int root2,
                                  const Transform3<S>& tf1, const Transform3<S>& tf2) const;
