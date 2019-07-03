@@ -56,6 +56,16 @@ FCL_EXPORT
 void convertBV(
     const BV1& bv1, const Transform3<typename BV1::S>& tf1, BV2& bv2);
 
+/// @brief Get a lower-bound on the distance between two BVs.
+///
+/// If both are OBBRSS (or RSS) return the distance between them.
+/// If checking AABB to OBBRSS (or RSS) convert the AABB to RSS to get the
+/// bound. Otherwise, convert both BVs to AABBs to get the lower bound.
+template <typename BV1, typename BV2>
+FCL_EXPORT
+typename BV1::S distanceBV(
+    const BV1& bv1, const Transform3<typename BV1::S>& tf1, BV2& bv2, const Transform3<typename BV2::S>& tf2);
+
 } // namespace fcl
 
 #include "fcl/math/bv/utility-inl.h"

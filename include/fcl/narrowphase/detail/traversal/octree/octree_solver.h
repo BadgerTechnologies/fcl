@@ -38,6 +38,8 @@
 #ifndef FCL_TRAVERSAL_OCTREE_OCTREESOLVER_H
 #define FCL_TRAVERSAL_OCTREE_OCTREESOLVER_H
 
+#include <map>
+
 #include "fcl/config.h"
 #if not(FCL_HAVE_OCTOMAP)
 #error "This header requires fcl to be compiled with octomap support"
@@ -70,6 +72,7 @@ private:
   mutable CollisionResult<S>* cresult;
   mutable DistanceResult<S>* dresult;
 
+  mutable unsigned int leaves_checked;
 public:
   OcTreeSolver(const NarrowPhaseSolver* solver_);
 
@@ -160,20 +163,35 @@ private:
   template <typename BV>
   struct OcTreeMeshDistanceCandidate
   {
+    OcTreeMeshDistanceCandidate(
+        const OcTree<S>* tree1_,
+        const typename OcTree<S>::OcTreeNode* leaf1_,
+        const BVHModel<BV>* tree2_,
+        int leaf2_,
+        const Transform3<S>& tf1_,
+        const Transform3<S>& tf2_)
+        : tree1(tree1_),
+          leaf1(leaf1_),
+          tree2(tree2_),
+          leaf2(leaf2_),
+          tf1(tf1_),
+          tf2(tf2)
+    {
+    }
     const OcTree<S>* tree1;
     const typename OcTree<S>::OcTreeNode* leaf1;
     const BVHModel<BV>* tree2;
     int leaf2;
-    const typename OcTree<S>::OcTreeNode* leaf1;
     const Transform3<S>& tf1;
     const Transform3<S>& tf2;
-  }
-  using OcTreeMeshDistanceCandidateMultiMap = std::multimap<S, OcTreeMeshDistanceCandidate>;
+  };
+  template <typename BV>
+  using OcTreeMeshDistanceCandidateMultiMap = std::multimap<S, std::shared_ptr<OcTreeMeshDistanceCandidate<BV>>>;
   template <typename BV>
   bool OcTreeMeshDistanceFindCandidatesRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                  const BVHModel<BV>* tree2, int root2,
                                  const Transform3<S>& tf1, const Transform3<S>& tf2,
-                                 OcTreeMeshDistanceCandidateMultiMap* candidate_map) const;
+                                 OcTreeMeshDistanceCandidateMultiMap<BV>* candidate_map) const;
   template <typename BV>
   bool OcTreeMeshDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                  const BVHModel<BV>* tree2, int root2,
