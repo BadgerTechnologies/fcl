@@ -205,7 +205,7 @@ S OBB<S>::volume() const
 template <typename S>
 S OBB<S>::size() const
 {
-  return extent.squaredNorm();
+  return extent.squaredNorm() * 4;
 }
 
 //==============================================================================
