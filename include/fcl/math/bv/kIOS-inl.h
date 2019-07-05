@@ -163,6 +163,13 @@ kIOS<S> kIOS<S>::operator + (const kIOS<S>& other) const
 
 //==============================================================================
 template <typename S>
+S kIOS<S>::radius() const
+{
+  return obb.radius();
+}
+
+//==============================================================================
+template <typename S>
 const Vector3<S>& kIOS<S>::center() const
 {
   return spheres[0].o;

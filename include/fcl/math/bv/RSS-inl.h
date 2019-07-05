@@ -413,6 +413,13 @@ S RSS<S>::size() const
 
 //==============================================================================
 template <typename S>
+S RSS<S>::radius() const
+{
+  return size() / 2;
+}
+
+//==============================================================================
+template <typename S>
 const Vector3<S> RSS<S>::center() const
 {
   return To;

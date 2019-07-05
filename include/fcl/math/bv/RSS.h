@@ -106,6 +106,9 @@ public:
   /// @brief Size of the RSS (used in BV_Splitter to order two RSSs)
   S size() const;
 
+  /// @brief Circumscribed radius of the BV, for quick checks between BVs
+  S radius() const;
+
   /// @brief The RSS center
   const Vector3<S> center() const;
 

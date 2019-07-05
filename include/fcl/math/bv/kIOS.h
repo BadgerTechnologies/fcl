@@ -93,6 +93,9 @@ public:
   /// @brief Return the merged kIOS of current kIOS and the other one
   kIOS<S> operator + (const kIOS<S>& other) const;
 
+  /// @brief Circumscribed radius of the BV, for quick checks between BVs
+  S radius() const;
+
   /// @brief Center of the kIOS
   const Vector3<S>& center() const;
 

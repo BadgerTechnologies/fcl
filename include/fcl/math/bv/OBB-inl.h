@@ -210,6 +210,13 @@ S OBB<S>::size() const
 
 //==============================================================================
 template <typename S>
+S OBB<S>::radius() const
+{
+  return extent.norm();
+}
+
+//==============================================================================
+template <typename S>
 const Vector3<S> OBB<S>::center() const
 {
   return To;
