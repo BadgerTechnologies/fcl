@@ -86,6 +86,13 @@ public:
   /// if object 2 is octree, it is the id of the cell
   int b2;
 
+  /// @brief Collision primitive1, if supported
+  std::shared_ptr<CollisionGeometry<S>> primitive1;
+  Transform3<S> tf1;
+  /// @brief Collision primitive2, if supported
+  std::shared_ptr<CollisionGeometry<S>> primitive2;
+  Transform3<S> tf2;
+
   /// @brief invalid contact primitive information
   static const int NONE = -1;
   
@@ -96,6 +103,13 @@ public:
 
   /// @brief add distance information into the result
   void update(S distance, const CollisionGeometry<S>* o1_, const CollisionGeometry<S>* o2_, int b1_, int b2_, const Vector3<S>& p1, const Vector3<S>& p2);
+
+  /// @brief add distance information into the result
+  void update(S distance, const CollisionGeometry<S>* o1_, const CollisionGeometry<S>* o2_, int b1_, int b2_, const Vector3<S>& p1, const Vector3<S>& p2,
+              std::shared_ptr<CollisionGeometry<S>> primitive1_,
+              const Transform3<S>& tf1_,
+              std::shared_ptr<CollisionGeometry<S>> primitive2_,
+              const Transform3<S>& tf2_);
 
   /// @brief add distance information into the result
   void update(const DistanceResult& other_result);

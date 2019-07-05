@@ -107,6 +107,38 @@ void DistanceResult<S>::update(
 //==============================================================================
 template <typename S>
 FCL_EXPORT
+void DistanceResult<S>::update(
+    S distance,
+    const CollisionGeometry<S>* o1_,
+    const CollisionGeometry<S>* o2_,
+    int b1_,
+    int b2_,
+    const Vector3<S>& p1,
+    const Vector3<S>& p2,
+    std::shared_ptr<CollisionGeometry<S>> primitive1_,
+    const Transform3<S>& tf1_,
+    std::shared_ptr<CollisionGeometry<S>> primitive2_,
+    const Transform3<S>& tf2_)
+{
+  if(min_distance > distance)
+  {
+    min_distance = distance;
+    o1 = o1_;
+    o2 = o2_;
+    b1 = b1_;
+    b2 = b2_;
+    nearest_points[0] = p1;
+    nearest_points[1] = p2;
+    primitive1 = primitive1_;
+    tf1 = tf1_;
+    primitive2 = primitive2_;
+    tf2 = tf2_;
+  }
+}
+
+//==============================================================================
+template <typename S>
+FCL_EXPORT
 void DistanceResult<S>::update(const DistanceResult& other_result)
 {
   if(min_distance > other_result.min_distance)
@@ -118,6 +150,10 @@ void DistanceResult<S>::update(const DistanceResult& other_result)
     b2 = other_result.b2;
     nearest_points[0] = other_result.nearest_points[0];
     nearest_points[1] = other_result.nearest_points[1];
+    primitive1 = other_result.primitive1;
+    tf1 = other_result.tf1;
+    primitive2 = other_result.primitive2;
+    tf2 = other_result.tf2;
   }
 }
 

@@ -112,7 +112,7 @@ public:
   /// @brief Size of the AABB (used in BV_Splitter to order two AABBs)
   S size() const;
 
-  /// @brief Radius of the AABB
+  /// @brief Circumscribed radius of the BV, for quick checks between BVs
   S radius() const;
 
   /// @brief Center of the AABB

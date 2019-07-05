@@ -92,6 +92,9 @@ public:
   /// @brief Size of the OBBRSS (used in BV_Splitter to order two OBBRSS)
   S size() const;
 
+  /// @brief Circumscribed radius of the BV, for quick checks between BVs
+  S radius() const;
+
   /// @brief Center of the OBBRSS
   const Vector3<S> center() const;
 
