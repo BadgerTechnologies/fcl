@@ -875,9 +875,9 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
 #endif
 #if 1
 
-      std::shared_ptr<Box<S>> box(new Box<S>());
+      Box<S> box;
       Transform3<S> box_tf;
-      constructBox(bv1, tf1, *box, box_tf);
+      constructBox(bv1, tf1, box, box_tf);
 
 #endif
       int primitive_id = tree2->getBV(root2).primitiveId();
@@ -886,15 +886,20 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
       const Vector3<S>& p1 = tree2->vertices[tri_id[0]];
       const Vector3<S>& p2 = tree2->vertices[tri_id[1]];
       const Vector3<S>& p3 = tree2->vertices[tri_id[2]];
-      std::shared_ptr<TriangleP<S>> triangle(new TriangleP<S>(p1, p2, p3));
 
       leaves_checked++;
       S dist;
       Vector3<S> closest_p1, closest_p2;
-      solver->shapeTriangleDistance(*box, box_tf, p1, p2, p3, tf2, &dist, &closest_p1, &closest_p2);
+      solver->shapeTriangleDistance(box, box_tf, p1, p2, p3, tf2, &dist, &closest_p1, &closest_p2);
 #endif
-      dresult->update(dist, tree1, tree2, root1 - tree1->getRoot(), primitive_id,
-                      closest_p1, closest_p2, box, box_tf, triangle, tf2);
+      if (dist < dresult->min_distance)
+      {
+        // only allocate dynamic memory in the case where a new min was found
+        std::shared_ptr<Box<S>> box_ptr(new Box<S>(box));
+        std::shared_ptr<TriangleP<S>> triangle(new TriangleP<S>(p1, p2, p3));
+        dresult->update(dist, tree1, tree2, root1 - tree1->getRoot(), primitive_id,
+                        closest_p1, closest_p2, box_ptr, box_tf, triangle, tf2);
+      }
 
       return drequest->isSatisfied(*dresult);
     }
@@ -946,7 +951,27 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
           {
             // We may need to descend here. Spend the time to find the exact
             // BV distances.
-            S bv_dist = distanceBV(child_bvs[i], tf1, bv2, tf2);
+            S bv_dist;
+//            if (tf1.isApprox(Transform3<S>::Identity()))
+            if (true)
+            {
+              // Special case of identity xform, leveraging fact that octomap
+              // cells are cubes.
+              RSS<S> rss;
+              rss.To = child_bvs[i].center();
+              const auto x = child_bvs[i].width();
+              rss.r = x / 2;
+//              rss.l[0] = x;
+//              rss.l[1] = x;
+              rss.l[0] = 0;
+              rss.l[1] = 0;
+              rss.axis.setIdentity();
+              bv_dist = distanceBV(rss, Transform3<S>::Identity(), bv2, tf2);
+            }
+            else
+            {
+              bv_dist = distanceBV(child_bvs[i], tf1, bv2, tf2);
+            }
             if(bv_dist < dresult->min_distance)
             {
               // Possible a better result is below, descend
