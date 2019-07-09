@@ -953,22 +953,39 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
             // BV distances.
             S bv_dist;
 //            if (tf1.isApprox(Transform3<S>::Identity()))
+#if 1
             if (true)
             {
               // Special case of identity xform, leveraging fact that octomap
               // cells are cubes.
-              RSS<S> rss;
-              rss.To = child_bvs[i].center();
-              const auto x = child_bvs[i].width();
-              rss.r = x / 2;
-//              rss.l[0] = x;
-//              rss.l[1] = x;
-              rss.l[0] = 0;
-              rss.l[1] = 0;
-              rss.axis.setIdentity();
-              bv_dist = distanceBV(rss, Transform3<S>::Identity(), bv2, tf2);
+              RSS<S> rss[3];
+              const auto c = child_bvs[i].center();
+              rss[0].To = c;
+              rss[1].To = c;
+              rss[2].To = c;
+              const S x = child_bvs[i].width();
+              rss[0].r = x / 2;
+              rss[0].l[0] = x;
+              rss[0].l[1] = x;
+              rss[1].r = x / 2;
+              rss[1].l[0] = x;
+              rss[1].l[1] = x;
+              rss[2].r = x / 2;
+              rss[2].l[0] = x;
+              rss[2].l[1] = x;
+              rss[0].axis.setIdentity();
+              rss[1].axis << 0, 1, 0,
+                             0, 0, 1,
+                             1, 0, 0;
+              rss[2].axis << 0, 0, 1,
+                             1, 0, 0,
+                             0, 1, 0;
+              bv_dist = distanceBV(rss[0], Transform3<S>::Identity(), bv2, tf2);
+              bv_dist = std::min(bv_dist, distanceBV(rss[1], Transform3<S>::Identity(), bv2, tf2));
+              bv_dist = std::min(bv_dist, distanceBV(rss[2], Transform3<S>::Identity(), bv2, tf2));
             }
             else
+#endif
             {
               bv_dist = distanceBV(child_bvs[i], tf1, bv2, tf2);
             }
