@@ -984,11 +984,54 @@ public:
   static S run(const AABB<S>& bv1, const Transform3<S>& tf1, const RSS<S>& bv2, const Transform3<S>& tf2)
   {
     // Convert the AABB to RSS for a more accurate lower-bounded distance
+#if 0
     RSS<S> bv1_converted;
     RSS<S> bv2_converted;
     convertBV(bv1, tf1, bv1_converted);
     convertBV(bv2, tf2, bv2_converted);
     return bv1_converted.distance(bv2_converted);
+#endif
+    AABB<S> faces[6];
+    RSS<S> faces_converted[6];
+    RSS<S> bv2_converted;
+    faces[0].min_ = bv1.min_;
+    faces[0].max_[0] = bv1.min_[0];
+    faces[0].max_[1] = bv1.max_[1];
+    faces[0].max_[2] = bv1.max_[2];
+    faces[1].min_ = bv1.min_;
+    faces[1].max_[0] = bv1.max_[0];
+    faces[1].max_[1] = bv1.min_[1];
+    faces[1].max_[2] = bv1.max_[2];
+    faces[2].min_ = bv1.min_;
+    faces[2].max_[0] = bv1.max_[0];
+    faces[2].max_[1] = bv1.max_[1];
+    faces[2].max_[2] = bv1.min_[2];
+    faces[3].min_[0] = bv1.max_[0];
+    faces[3].min_[1] = bv1.min_[1];
+    faces[3].min_[2] = bv1.min_[2];
+    faces[3].max_ = bv1.max_;
+    faces[4].min_[0] = bv1.min_[0];
+    faces[4].min_[1] = bv1.max_[1];
+    faces[4].min_[2] = bv1.min_[2];
+    faces[4].max_ = bv1.max_;
+    faces[5].min_[0] = bv1.min_[0];
+    faces[5].min_[1] = bv1.min_[1];
+    faces[5].min_[2] = bv1.max_[2];
+    faces[5].max_ = bv1.max_;
+
+    convertBV(bv2, tf2, bv2_converted);
+    for (int i=0; i<6; ++i)
+    {
+      convertBV(faces[i], tf1, faces_converted[i]);
+    }
+    S rv = bv2_converted.distance(faces_converted[0]);
+    for (int i=1; i<6; ++i)
+    {
+      S d =  bv2_converted.distance(faces_converted[i]);
+      if (d < rv)
+        rv = d;
+    }
+    return rv;
   }
 };
 
@@ -1019,6 +1062,50 @@ public:
   static S run(const OBBRSS<S>& bv1, const Transform3<S>& tf1, const AABB<S>& bv2, const Transform3<S>& tf2)
   {
     return DistanceBVImpl<S, AABB<S>, RSS<S>>::run(bv2, tf2, bv1.rss, tf1);
+  }
+};
+
+template <typename S>
+class FCL_EXPORT DistanceBVImpl<S, RSS<S>, RSS<S>>
+{
+public:
+  static S run(const RSS<S>& bv1, const Transform3<S>& tf1, const RSS<S>& bv2, const Transform3<S>& tf2)
+  {
+    RSS<S> bv1_converted;
+    RSS<S> bv2_converted;
+    convertBV(bv1, tf1, bv1_converted);
+    convertBV(bv2, tf2, bv2_converted);
+    return bv1_converted.distance(bv2_converted);
+  }
+};
+
+template <typename S>
+class FCL_EXPORT DistanceBVImpl<S, RSS<S>, OBBRSS<S>>
+{
+public:
+  static S run(const RSS<S>& bv1, const Transform3<S>& tf1, const OBBRSS<S>& bv2, const Transform3<S>& tf2)
+  {
+    return DistanceBVImpl<S, RSS<S>, RSS<S>>::run(bv1, tf1, bv2.rss, tf2);
+  }
+};
+
+template <typename S>
+class FCL_EXPORT DistanceBVImpl<S, OBBRSS<S>, RSS<S>>
+{
+public:
+  static S run(const OBBRSS<S>& bv1, const Transform3<S>& tf1, const RSS<S>& bv2, const Transform3<S>& tf2)
+  {
+    return DistanceBVImpl<S, RSS<S>, RSS<S>>::run(bv1.rss, tf1, bv2, tf2);
+  }
+};
+
+template <typename S>
+class FCL_EXPORT DistanceBVImpl<S, OBBRSS<S>, OBBRSS<S>>
+{
+public:
+  static S run(const OBBRSS<S>& bv1, const Transform3<S>& tf1, const OBBRSS<S>& bv2, const Transform3<S>& tf2)
+  {
+    return DistanceBVImpl<S, RSS<S>, RSS<S>>::run(bv1.rss, tf1, bv2.rss, tf2);
   }
 };
 
