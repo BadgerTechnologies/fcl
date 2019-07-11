@@ -956,7 +956,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
     S next_min;
     const BV& bv2 = tree2->getBV(root2).bv;
     const Vector3<S> bv2_center(tf2 * bv2.center());
-    const S bv2_radius(bv2.radius());
+//    const S bv2_radius(bv2.radius());
     for(unsigned int i = 0; i < 8; ++i)
     {
       if(tree1->nodeChildExists(root1, i))
@@ -966,7 +966,9 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
         {
           children[nchildren] = child;
           computeChildBV(bv1, i, child_bvs[nchildren]);
-          distances[nchildren] = distanceFastLowerBound(child_bvs[nchildren], tf1, bv2_center, bv2_radius);
+//          distances[nchildren] = distanceFastLowerBound(child_bvs[nchildren], tf1, bv2_center, bv2_radius);
+          distances[nchildren] = distanceOctomapRSS(child_bvs[nchildren], tf1, child_bvs[nchildren].center(),
+                                                    bv2, tf2, bv2_center);
           if (distances[nchildren] < min_distance)
           {
             min_distance = distances[nchildren];
@@ -986,11 +988,13 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
         {
           if(distances[i] < dresult->min_distance)
           {
+#if 0
             // We may need to descend here. Spend the time to find the exact
             // BV distances.
             S bv_dist = distanceOctomapRSS(child_bvs[i], tf1, child_bvs[i].center(),
                                            bv2, tf2, bv2_center);
             if(bv_dist < dresult->min_distance)
+#endif
             {
               // Possible a better result is below, descend
               if(OcTreeMeshDistanceRecurse(tree1, children[i], child_bvs[i], tree2, root2, tf1, tf2))
@@ -1020,13 +1024,19 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
   else
   {
     const Vector3<S> bv1_center(tf1 * bv1.center());
-    const S bv1_radius(bv1.radius());
+//    const S bv1_radius(bv1.radius());
     int children[2] = {
       tree2->getBV(root2).leftChild(),
       tree2->getBV(root2).rightChild()};
+    const BV* bv2[2] = {
+      &tree2->getBV(children[0]).bv,
+      &tree2->getBV(children[1]).bv};
+//    S d[2] = {
+//      distanceFastLowerBound(tree2->getBV(children[0]).bv, tf2, bv1_center, bv1_radius),
+//      distanceFastLowerBound(tree2->getBV(children[1]).bv, tf2, bv1_center, bv1_radius)};
     S d[2] = {
-      distanceFastLowerBound(tree2->getBV(children[0]).bv, tf2, bv1_center, bv1_radius),
-      distanceFastLowerBound(tree2->getBV(children[1]).bv, tf2, bv1_center, bv1_radius)};
+      distanceOctomapRSS(bv1, tf1, bv1_center, *bv2[0], tf2, bv2[0]->center()),
+      distanceOctomapRSS(bv1, tf1, bv1_center, *bv2[1], tf2, bv2[1]->center())};
     // Go left first if it is closer, otherwise go right first
     if (d[0] < d[1])
     {
@@ -1034,10 +1044,12 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
       {
         if(d[i] < dresult->min_distance)
         {
+#if 0
           const auto& bv2 = tree2->getBV(children[i]).bv;
           S bv_dist = distanceOctomapRSS(bv1, tf1, bv1_center,
                                          bv2, tf2, bv2.center());
           if(bv_dist < dresult->min_distance)
+#endif
           {
             if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf1, tf2))
               return true;
@@ -1051,10 +1063,12 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
       {
         if(d[i] < dresult->min_distance)
         {
+#if 0
           const auto& bv2 = tree2->getBV(children[i]).bv;
           S bv_dist = distanceOctomapRSS(bv1, tf1, bv1_center,
                                          bv2, tf2, bv2.center());
           if(bv_dist < dresult->min_distance)
+#endif
           {
             if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf1, tf2))
               return true;
