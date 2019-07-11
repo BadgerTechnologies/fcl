@@ -148,7 +148,8 @@ void OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistance(
   OcTreeMeshDistanceRecurse(tree1, tree1->getRoot(), tree1->getRootBV(),
                             tree2, 0,
                             tf1, tf2);
-  dresult->min_distance = leaves_checked + dresult->min_distance / 1000.0;
+  // XXX DEL ME
+  dresult->b1 = leaves_checked;
 #endif
 #if 0
   }
@@ -190,16 +191,12 @@ void OcTreeSolver<NarrowPhaseSolver>::MeshOcTreeDistance(
   drequest = &request_;
   dresult = &result_;
 
-  if (!OcTreeMeshUpperBoundDistanceRecurse(tree1, 0,
-                            tree2, tree2->getRoot(), tree2->getRootBV(),
-                            tf1, tf2))
-  {
-#if 1
-  OcTreeMeshDistanceRecurse(tree1, 0,
-                            tree2, tree2->getRoot(), tree2->getRootBV(),
-                            tf1, tf2);
-#endif
-  }
+  leaves_checked = 0;
+  OcTreeMeshDistanceRecurse(tree2, tree2->getRoot(), tree2->getRootBV(),
+                            tree1, 0,
+                            tf2, tf1);
+  // XXX DEL ME
+  dresult->b1 = leaves_checked;
 }
 
 //==============================================================================
@@ -830,7 +827,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceFindCandidatesRecurse(co
 template <typename S, typename BV1>
 inline S distanceFastLowerBound(const BV1& bv1, const Transform3<S>& tf1, const Vector3<S>& center2, S radius2)
 {
-  S rv = ((tf1.translation() + bv1.center()) - center2).norm() - bv1.radius() - radius2;
+  S rv = ((tf1 * bv1.center()) - center2).norm() - bv1.radius() - radius2;
 
   return rv < 0.0 ? 0.0 : rv;
 }
@@ -843,7 +840,47 @@ inline S distanceFastLowerBound(const BV1& bv1, const Transform3<S>& tf1, const 
 template <typename S, typename BV1, typename BV2>
 inline S distanceFastLowerBound(const BV1& bv1, const Transform3<S>& tf1, const BV2& bv2, const Transform3<S>& tf2)
 {
-  return distanceFastLowerBound(bv1, tf1, bv2.center() + tf2.translation(), bv2.radius());
+  return distanceFastLowerBound(bv1, tf1, tf2 * bv2.center(), bv2.radius());
+}
+
+template <typename S, typename BV2>
+inline S distanceOctomapRSS(const AABB<S>& aabb1, const Transform3<S>& tf1, const Vector3<S>& bv1_center,
+                            const BV2& bv2, const Transform3<S>& tf2, const Vector3<S>& bv2_center)
+{
+  if (tf1.isApprox(Transform3<S>::Identity()))
+  {
+    // Special case of identity xform, leveraging fact that octomap
+    // cells are cubes.
+    // Orient the flat face of the RSS at the current other BV
+    RSS<S> rss;
+    Vector3<S> dir(bv1_center-bv2_center);
+    dir[0] = std::abs(dir[0]);
+    dir[1] = std::abs(dir[1]);
+    dir[2] = std::abs(dir[2]);
+    rss.To = bv1_center;
+    const S x = aabb1.width();
+    rss.r = x / 2;
+    rss.l[0] = x;
+    rss.l[1] = x;
+    if (dir[0] > dir[1] && dir[1] > dir[2])
+    {
+      rss.axis << 0, 0, 1,
+                  1, 0, 0,
+                  0, 1, 0;
+    }
+    else if (!(dir[0] > dir[1]) && dir[1] > dir[2])
+    {
+      rss.axis << 0, 1, 0,
+                  0, 0, 1,
+                  1, 0, 0;
+    }
+    else
+    {
+      rss.axis.setIdentity();
+    }
+    return distanceBV(rss, Transform3<S>::Identity(), bv2, tf2);
+  }
+  return distanceBV(aabb1, tf1, bv2, tf2);
 }
 
 //==============================================================================
@@ -918,7 +955,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
     S min_distance = std::numeric_limits<S>::max();
     S next_min;
     const BV& bv2 = tree2->getBV(root2).bv;
-    const Vector3<S> bv2_center(bv2.center() + tf2.translation());
+    const Vector3<S> bv2_center(tf2 * bv2.center());
     const S bv2_radius(bv2.radius());
     for(unsigned int i = 0; i < 8; ++i)
     {
@@ -951,44 +988,8 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
           {
             // We may need to descend here. Spend the time to find the exact
             // BV distances.
-            S bv_dist;
-//            if (tf1.isApprox(Transform3<S>::Identity()))
-#if 1
-            if (true)
-            {
-              // Special case of identity xform, leveraging fact that octomap
-              // cells are cubes.
-              RSS<S> rss[3];
-              const auto c = child_bvs[i].center();
-              rss[0].To = c;
-              rss[1].To = c;
-              rss[2].To = c;
-              const S x = child_bvs[i].width();
-              rss[0].r = x / 2;
-              rss[0].l[0] = x;
-              rss[0].l[1] = x;
-              rss[1].r = x / 2;
-              rss[1].l[0] = x;
-              rss[1].l[1] = x;
-              rss[2].r = x / 2;
-              rss[2].l[0] = x;
-              rss[2].l[1] = x;
-              rss[0].axis.setIdentity();
-              rss[1].axis << 0, 1, 0,
-                             0, 0, 1,
-                             1, 0, 0;
-              rss[2].axis << 0, 0, 1,
-                             1, 0, 0,
-                             0, 1, 0;
-              bv_dist = distanceBV(rss[0], Transform3<S>::Identity(), bv2, tf2);
-              bv_dist = std::min(bv_dist, distanceBV(rss[1], Transform3<S>::Identity(), bv2, tf2));
-              bv_dist = std::min(bv_dist, distanceBV(rss[2], Transform3<S>::Identity(), bv2, tf2));
-            }
-            else
-#endif
-            {
-              bv_dist = distanceBV(child_bvs[i], tf1, bv2, tf2);
-            }
+            S bv_dist = distanceOctomapRSS(child_bvs[i], tf1, child_bvs[i].center(),
+                                           bv2, tf2, bv2_center);
             if(bv_dist < dresult->min_distance)
             {
               // Possible a better result is below, descend
@@ -1018,7 +1019,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
   }
   else
   {
-    const Vector3<S> bv1_center(bv1.center());
+    const Vector3<S> bv1_center(tf1 * bv1.center());
     const S bv1_radius(bv1.radius());
     int children[2] = {
       tree2->getBV(root2).leftChild(),
@@ -1033,7 +1034,9 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
       {
         if(d[i] < dresult->min_distance)
         {
-          S bv_dist = distanceBV(bv1, tf1, tree2->getBV(children[i]).bv, tf2);
+          const auto& bv2 = tree2->getBV(children[i]).bv;
+          S bv_dist = distanceOctomapRSS(bv1, tf1, bv1_center,
+                                         bv2, tf2, bv2.center());
           if(bv_dist < dresult->min_distance)
           {
             if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf1, tf2))
@@ -1048,7 +1051,9 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
       {
         if(d[i] < dresult->min_distance)
         {
-          S bv_dist = distanceBV(bv1, tf1, tree2->getBV(children[i]).bv, tf2);
+          const auto& bv2 = tree2->getBV(children[i]).bv;
+          S bv_dist = distanceOctomapRSS(bv1, tf1, bv1_center,
+                                         bv2, tf2, bv2.center());
           if(bv_dist < dresult->min_distance)
           {
             if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf1, tf2))
