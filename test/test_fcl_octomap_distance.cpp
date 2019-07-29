@@ -120,9 +120,9 @@ template <typename S>
 void test_octomap_bvh_rss_d_distance_rss()
 {
 #ifdef NDEBUG
-  octomap_distance_test_BVH<RSS<S>>(5);
+  octomap_distance_test_BVH<RSS<S>>(15);
 #else
-  octomap_distance_test_BVH<RSS<S>>(1, 1.0);
+  octomap_distance_test_BVH<RSS<S>>(15, 1.0);
 #endif
 }
 
@@ -136,9 +136,9 @@ template <typename S>
 void test_octomap_bvh_obb_d_distance_obb()
 {
 #ifdef NDEBUG
-  octomap_distance_test_BVH<OBBRSS<S>>(5);
+  octomap_distance_test_BVH<OBBRSS<S>>(15);
 #else
-  octomap_distance_test_BVH<OBBRSS<S>>(1, 1.0);
+  octomap_distance_test_BVH<OBBRSS<S>>(15, 1.0);
 #endif
 }
 
@@ -152,9 +152,9 @@ template <typename S>
 void test_octomap_bvh_kios_d_distance_kios()
 {
 #ifdef NDEBUG
-  octomap_distance_test_BVH<kIOS<S>>(5);
+  octomap_distance_test_BVH<kIOS<S>>(15);
 #else
-  octomap_distance_test_BVH<kIOS<S>>(1, 1.0);
+  octomap_distance_test_BVH<kIOS<S>>(15, 1.0);
 #endif
 }
 
@@ -185,25 +185,37 @@ void octomap_distance_test_BVH(std::size_t n, double resolution)
   std::shared_ptr<CollisionGeometry<S>> tree_ptr(tree);
 
   aligned_vector<Transform3<S>> transforms;
-  S extents[] = {-10, -10, 10, 10, 10, 10};
+  S extents[] = {-10, -10, -10, 10, 10, 10};
 
   test::generateRandomTransforms(extents, transforms, n);
+  if (n > 1)
+  {
+    // Be sure to test identity
+    transforms[n - 1] = Transform3<S>::Identity();
+    transforms[n / 2 - 1] = Transform3<S>::Identity();
+    transforms[n / 2] = Transform3<S>::Identity();
+  }
 
   for(std::size_t i = 0; i < n; ++i)
   {
-    Transform3<S> tf(transforms[i]);
+    Transform3<S> tf1(transforms[i]);
+    Transform3<S> tf2(transforms[n-1-i]);
 
-    CollisionObject<S> obj1(m1_ptr, tf);
-    CollisionObject<S> obj2(tree_ptr, tf);
+    CollisionObject<S> obj1(m1_ptr, tf1);
+    CollisionObject<S> obj2(tree_ptr, tf2);
     test::DistanceData<S> cdata;
+    test::DistanceData<S> cdata1b;
     S dist1 = std::numeric_limits<S>::max();
+    S dist1b = std::numeric_limits<S>::max();
     test::defaultDistanceFunction(&obj1, &obj2, &cdata, dist1);
+    test::defaultDistanceFunction(&obj2, &obj1, &cdata1b, dist1b);
+    EXPECT_TRUE(std::abs(dist1 - dist1b) < 1e-6);
 
 
     std::vector<CollisionObject<S>*> boxes;
     test::generateBoxesFromOctomap(boxes, *tree);
     for(std::size_t j = 0; j < boxes.size(); ++j)
-      boxes[j]->setTransform(tf * boxes[j]->getTransform());
+      boxes[j]->setTransform(tf2 * boxes[j]->getTransform());
 
     DynamicAABBTreeCollisionManager<S>* manager = new DynamicAABBTreeCollisionManager<S>();
     manager->registerObjects(boxes);
@@ -214,11 +226,15 @@ void octomap_distance_test_BVH(std::size_t n, double resolution)
     S dist2 = cdata2.result.min_distance;
 
     for(std::size_t j = 0; j < boxes.size(); ++j)
+    {
+      test::DistanceData<S> cdatab;
+      S dist = std::numeric_limits<S>::max();
+      test::defaultDistanceFunction(&obj1, boxes[j], &cdatab, dist);
       delete boxes[j];
+    }
     delete manager;
 
-    std::cout << dist1 << " " << dist2 << std::endl;
-    EXPECT_TRUE(std::abs(dist1 - dist2) < 0.001);
+    EXPECT_TRUE(std::abs(dist1 - dist2) < 1e-6);
   }
 }
 
