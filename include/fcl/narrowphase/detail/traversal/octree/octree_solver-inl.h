@@ -857,7 +857,6 @@ inline S distanceOctomapRSS(const AABB<S>& aabb1, const Transform3<S>& tf1, cons
     dir[0] = std::abs(dir[0]);
     dir[1] = std::abs(dir[1]);
     dir[2] = std::abs(dir[2]);
-    rss.To = bv1_center;
     const S x = aabb1.width();
     rss.r = x / 2;
     rss.l[0] = x;
@@ -878,6 +877,7 @@ inline S distanceOctomapRSS(const AABB<S>& aabb1, const Transform3<S>& tf1, cons
     {
       rss.axis.setIdentity();
     }
+    rss.setToFromCenter(bv1_center);
     return distanceBV(rss, Transform3<S>::Identity(), bv2, tf2);
   }
   return distanceBV(aabb1, tf1, bv2, tf2);
