@@ -126,6 +126,9 @@ public:
   /// @brief Size of the kDOP (used in BV_Splitter to order two kDOPs)
   S size() const;
 
+  /// @brief Circumscribed radius of the BV, for quick checks between BVs
+  S radius() const;
+
   /// @brief The (AABB) center
   Vector3<S> center() const;
 

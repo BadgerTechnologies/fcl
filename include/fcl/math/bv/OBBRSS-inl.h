@@ -137,6 +137,13 @@ S OBBRSS<S>::size() const
 
 //==============================================================================
 template <typename S>
+S OBBRSS<S>::radius() const
+{
+  return obb.radius();
+}
+
+//==============================================================================
+template <typename S>
 const Vector3<S> OBBRSS<S>::center() const
 {
   return obb.center();

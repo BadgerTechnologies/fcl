@@ -250,6 +250,14 @@ S KDOP<S, N>::size() const
 //==============================================================================
 template <typename S, std::size_t N>
 FCL_EXPORT
+S KDOP<S, N>::radius() const
+{
+  return std::sqrt(size()) / 2;
+}
+
+//==============================================================================
+template <typename S, std::size_t N>
+FCL_EXPORT
 Vector3<S> KDOP<S, N>::center() const
 {
   return Vector3<S>(dist_[0] + dist_[N / 2], dist_[1] + dist_[N / 2 + 1], dist_[2] + dist_[N / 2 + 2]) * 0.5;

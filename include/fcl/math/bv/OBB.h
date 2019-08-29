@@ -108,6 +108,9 @@ public:
   /// @brief Size of the OBB (used in BV_Splitter to order two OBBs)
   S size() const;
 
+  /// @brief Circumscribed radius of the BV, for quick checks between BVs
+  S radius() const;
+
   /// @brief Center of the OBB
   const Vector3<S> center() const;
 
