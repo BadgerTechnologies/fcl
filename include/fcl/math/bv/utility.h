@@ -66,6 +66,12 @@ FCL_EXPORT
 typename BV1::S distanceBV(
     const BV1& bv1, const Transform3<typename BV1::S>& tf1, BV2& bv2, const Transform3<typename BV2::S>& tf2);
 
+/// @brief Get a lower-bound on the distance between two BVs.
+template <typename BV1, typename BV2>
+FCL_EXPORT
+typename BV1::S distanceBV(
+    const BV1& bv1, BV2& bv2, const Transform3<typename BV2::S>& tf2);
+
 } // namespace fcl
 
 #include "fcl/math/bv/utility-inl.h"

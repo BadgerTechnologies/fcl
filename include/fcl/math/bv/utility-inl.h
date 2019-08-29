@@ -960,18 +960,18 @@ extern template
 class FCL_EXPORT ConvertBVImpl<double, AABB<double>, RSS<double>>;
 
 //==============================================================================
-/// @brief Distance of a bounding volume of type BV1 in configuration tf1 to a
+/// @brief Distance of a bounding volume of type BV1 in configuration I to a
 /// bounding volume of type BV2 in tf2 configuration.
 template <typename S, typename BV1, typename BV2>
 class FCL_EXPORT DistanceBVImpl
 {
 public:
-  static S run(const BV1& bv1, const Transform3<S>& tf1, const BV2& bv2, const Transform3<S>& tf2)
+  static S run(const BV1& bv1, const BV2& bv2, const Transform3<S>& tf2)
   {
     // Default is to convert both to AABB
     AABB<S> bv1_converted;
     AABB<S> bv2_converted;
-    convertBV(bv1, tf1, bv1_converted);
+    convertBV(bv1, Transform3<S>::Identity(), bv1_converted);
     convertBV(bv2, tf2, bv2_converted);
     return bv1_converted.distance(bv2_converted);
   }
@@ -981,7 +981,7 @@ template <typename S>
 class FCL_EXPORT DistanceBVImpl<S, AABB<S>, RSS<S>>
 {
 public:
-  static S run(const AABB<S>& bv1, const Transform3<S>& tf1, const RSS<S>& bv2, const Transform3<S>& tf2)
+  static S run(const AABB<S>& bv1, const RSS<S>& bv2, const Transform3<S>& tf2)
   {
     // Convert the AABB to RSS for a more accurate lower-bounded distance
 #if 0
@@ -1022,7 +1022,7 @@ public:
     convertBV(bv2, tf2, bv2_converted);
     for (int i=0; i<6; ++i)
     {
-      convertBV(faces[i], tf1, faces_converted[i]);
+      convertBV(faces[i], Transform3<S>::Identity(), faces_converted[i]);
     }
     S rv = bv2_converted.distance(faces_converted[0]);
     for (int i=1; i<6; ++i)
@@ -1039,9 +1039,9 @@ template <typename S>
 class FCL_EXPORT DistanceBVImpl<S, RSS<S>, AABB<S>>
 {
 public:
-  static S run(const RSS<S>& bv1, const Transform3<S>& tf1, const AABB<S>& bv2, const Transform3<S>& tf2)
+  static S run(const RSS<S>& bv1, const AABB<S>& bv2, const Transform3<S>& tf2)
   {
-    return DistanceBVImpl<S, AABB<S>, RSS<S>>::run(bv2, tf2, bv1, tf1);
+    return DistanceBVImpl<S, AABB<S>, RSS<S>>::run(bv2, bv1, tf2.inverse());
   }
 };
 
@@ -1049,9 +1049,9 @@ template <typename S>
 class FCL_EXPORT DistanceBVImpl<S, AABB<S>, OBBRSS<S>>
 {
 public:
-  static S run(const AABB<S>& bv1, const Transform3<S>& tf1, const OBBRSS<S>& bv2, const Transform3<S>& tf2)
+  static S run(const AABB<S>& bv1, const OBBRSS<S>& bv2, const Transform3<S>& tf2)
   {
-    return DistanceBVImpl<S, AABB<S>, RSS<S>>::run(bv1, tf1, bv2.rss, tf2);
+    return DistanceBVImpl<S, AABB<S>, RSS<S>>::run(bv1, bv2.rss, tf2);
   }
 };
 
@@ -1059,9 +1059,9 @@ template <typename S>
 class FCL_EXPORT DistanceBVImpl<S, OBBRSS<S>, AABB<S>>
 {
 public:
-  static S run(const OBBRSS<S>& bv1, const Transform3<S>& tf1, const AABB<S>& bv2, const Transform3<S>& tf2)
+  static S run(const OBBRSS<S>& bv1, const AABB<S>& bv2, const Transform3<S>& tf2)
   {
-    return DistanceBVImpl<S, AABB<S>, RSS<S>>::run(bv2, tf2, bv1.rss, tf1);
+    return DistanceBVImpl<S, AABB<S>, RSS<S>>::run(bv2, bv1.rss, tf2.inverse());
   }
 };
 
@@ -1069,13 +1069,11 @@ template <typename S>
 class FCL_EXPORT DistanceBVImpl<S, RSS<S>, RSS<S>>
 {
 public:
-  static S run(const RSS<S>& bv1, const Transform3<S>& tf1, const RSS<S>& bv2, const Transform3<S>& tf2)
+  static S run(const RSS<S>& bv1, const RSS<S>& bv2, const Transform3<S>& tf2)
   {
-    RSS<S> bv1_converted;
     RSS<S> bv2_converted;
-    convertBV(bv1, tf1, bv1_converted);
     convertBV(bv2, tf2, bv2_converted);
-    return bv1_converted.distance(bv2_converted);
+    return bv1.distance(bv2_converted);
   }
 };
 
@@ -1083,9 +1081,9 @@ template <typename S>
 class FCL_EXPORT DistanceBVImpl<S, RSS<S>, OBBRSS<S>>
 {
 public:
-  static S run(const RSS<S>& bv1, const Transform3<S>& tf1, const OBBRSS<S>& bv2, const Transform3<S>& tf2)
+  static S run(const RSS<S>& bv1, const OBBRSS<S>& bv2, const Transform3<S>& tf2)
   {
-    return DistanceBVImpl<S, RSS<S>, RSS<S>>::run(bv1, tf1, bv2.rss, tf2);
+    return DistanceBVImpl<S, RSS<S>, RSS<S>>::run(bv1, bv2.rss, tf2);
   }
 };
 
@@ -1093,9 +1091,9 @@ template <typename S>
 class FCL_EXPORT DistanceBVImpl<S, OBBRSS<S>, RSS<S>>
 {
 public:
-  static S run(const OBBRSS<S>& bv1, const Transform3<S>& tf1, const RSS<S>& bv2, const Transform3<S>& tf2)
+  static S run(const OBBRSS<S>& bv1, const RSS<S>& bv2, const Transform3<S>& tf2)
   {
-    return DistanceBVImpl<S, RSS<S>, RSS<S>>::run(bv1.rss, tf1, bv2, tf2);
+    return DistanceBVImpl<S, RSS<S>, RSS<S>>::run(bv1.rss, bv2, tf2);
   }
 };
 
@@ -1103,9 +1101,9 @@ template <typename S>
 class FCL_EXPORT DistanceBVImpl<S, OBBRSS<S>, OBBRSS<S>>
 {
 public:
-  static S run(const OBBRSS<S>& bv1, const Transform3<S>& tf1, const OBBRSS<S>& bv2, const Transform3<S>& tf2)
+  static S run(const OBBRSS<S>& bv1, const OBBRSS<S>& bv2, const Transform3<S>& tf2)
   {
-    return DistanceBVImpl<S, RSS<S>, RSS<S>>::run(bv1.rss, tf1, bv2.rss, tf2);
+    return DistanceBVImpl<S, RSS<S>, RSS<S>>::run(bv1.rss, bv2.rss, tf2);
   }
 };
 
@@ -1134,7 +1132,19 @@ typename BV1::S distanceBV(
   static_assert(std::is_same<typename BV1::S, typename BV2::S>::value,
                 "The scalar type of BV1 and BV2 should be the same");
 
-  return detail::DistanceBVImpl<typename BV1::S, BV1, BV2>::run(bv1, tf1, bv2, tf2);
+  return distanceBV(bv1, bv2, tf1.inverse() * tf2);
+}
+
+//==============================================================================
+template <typename BV1, typename BV2>
+FCL_EXPORT
+typename BV1::S distanceBV(
+    const BV1& bv1, const BV2& bv2, const Transform3<typename BV2::S>& tf2)
+{
+  static_assert(std::is_same<typename BV1::S, typename BV2::S>::value,
+                "The scalar type of BV1 and BV2 should be the same");
+
+  return detail::DistanceBVImpl<typename BV1::S, BV1, BV2>::run(bv1, bv2, tf2);
 }
 
 } // namespace fcl
