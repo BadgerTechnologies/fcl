@@ -156,13 +156,13 @@ private:
   template <typename BV>
   bool OcTreeMeshDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                  const BVHModel<BV>* tree2, int root2,
-                                 const Transform3<S>& tf1, const Transform3<S>& tf2) const;
+                                 const Transform3<S>& tf2) const;
 
 
   template <typename BV>
   bool OcTreeMeshIntersectRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                   const BVHModel<BV>* tree2, int root2,
-                                  const Transform3<S>& tf1, const Transform3<S>& tf2) const;
+                                  const Transform3<S>& tf2) const;
 
   bool OcTreeDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                              const OcTree<S>* tree2, const typename OcTree<S>::OcTreeNode* root2, const AABB<S>& bv2,
