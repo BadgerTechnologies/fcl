@@ -63,8 +63,8 @@ OcTree<S>::OcTree(S resolution)
   default_occupancy = tree->getOccupancyThres();
 
   // default occupancy/free threshold is consistent with default setting from octomap
-  occupancy_threshold = tree->getOccupancyThres();
-  free_threshold = 0;
+  occupancy_threshold_log_odds = tree->getOccupancyThresLog();
+  free_threshold_log_odds = 0.0;
 }
 
 //==============================================================================
@@ -75,8 +75,8 @@ OcTree<S>::OcTree(const std::shared_ptr<const octomap::OcTree>& tree_)
   default_occupancy = tree->getOccupancyThres();
 
   // default occupancy/free threshold is consistent with default setting from octomap
-  occupancy_threshold = tree->getOccupancyThres();
-  free_threshold = 0;
+  occupancy_threshold_log_odds = tree->getOccupancyThresLog();
+  free_threshold_log_odds = 0;
 }
 
 //==============================================================================
@@ -110,7 +110,7 @@ template <typename S>
 bool OcTree<S>::isNodeOccupied(const OcTree<S>::OcTreeNode* node) const
 {
   // return tree->isNodeOccupied(node);
-  return node->getOccupancy() >= occupancy_threshold;
+  return node->getLogOdds() >= occupancy_threshold_log_odds;
 }
 
 //==============================================================================
@@ -118,7 +118,7 @@ template <typename S>
 bool OcTree<S>::isNodeFree(const OcTree<S>::OcTreeNode* node) const
 {
   // return false; // default no definitely free node
-  return node->getOccupancy() <= free_threshold;
+  return node->getLogOdds() <= free_threshold_log_odds;
 }
 
 //==============================================================================
@@ -132,14 +132,14 @@ bool OcTree<S>::isNodeUncertain(const OcTree<S>::OcTreeNode* node) const
 template <typename S>
 S OcTree<S>::getOccupancyThres() const
 {
-  return occupancy_threshold;
+  return octomap::probability(occupancy_threshold_log_odds);
 }
 
 //==============================================================================
 template <typename S>
 S OcTree<S>::getFreeThres() const
 {
-  return free_threshold;
+  return octomap::probability(free_threshold_log_odds);
 }
 
 //==============================================================================
@@ -160,14 +160,14 @@ void OcTree<S>::setCellDefaultOccupancy(S d)
 template <typename S>
 void OcTree<S>::setOccupancyThres(S d)
 {
-  occupancy_threshold = d;
+  occupancy_threshold_log_odds = octomap::logodds(d);
 }
 
 //==============================================================================
 template <typename S>
 void OcTree<S>::setFreeThres(S d)
 {
-  free_threshold = d;
+  free_threshold_log_odds = octomap::logodds(d);
 }
 
 //==============================================================================
