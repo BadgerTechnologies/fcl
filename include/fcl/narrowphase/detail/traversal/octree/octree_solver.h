@@ -38,8 +38,6 @@
 #ifndef FCL_TRAVERSAL_OCTREE_OCTREESOLVER_H
 #define FCL_TRAVERSAL_OCTREE_OCTREESOLVER_H
 
-#include <map>
-
 #include "fcl/config.h"
 #if not(FCL_HAVE_OCTOMAP)
 #error "This header requires fcl to be compiled with octomap support"
@@ -72,7 +70,6 @@ private:
   mutable CollisionResult<S>* cresult;
   mutable DistanceResult<S>* dresult;
 
-  mutable unsigned int leaves_checked;
 public:
   OcTreeSolver(const NarrowPhaseSolver* solver_);
 
@@ -157,51 +154,15 @@ private:
                                    const Transform3<S>& tf1, const Transform3<S>& tf2) const;
 
   template <typename BV>
-  bool OcTreeMeshUpperBoundDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
-                                 const BVHModel<BV>* tree2, int root2,
-                                 const Transform3<S>& tf1, const Transform3<S>& tf2) const;
-  template <typename BV>
-  struct OcTreeMeshDistanceCandidate
-  {
-    OcTreeMeshDistanceCandidate(
-        const OcTree<S>* tree1_,
-        const typename OcTree<S>::OcTreeNode* leaf1_,
-        const BVHModel<BV>* tree2_,
-        int leaf2_,
-        const Transform3<S>& tf1_,
-        const Transform3<S>& tf2_)
-        : tree1(tree1_),
-          leaf1(leaf1_),
-          tree2(tree2_),
-          leaf2(leaf2_),
-          tf1(tf1_),
-          tf2(tf2)
-    {
-    }
-    const OcTree<S>* tree1;
-    const typename OcTree<S>::OcTreeNode* leaf1;
-    const BVHModel<BV>* tree2;
-    int leaf2;
-    const Transform3<S>& tf1;
-    const Transform3<S>& tf2;
-  };
-  template <typename BV>
-  using OcTreeMeshDistanceCandidateMultiMap = std::multimap<S, std::shared_ptr<OcTreeMeshDistanceCandidate<BV>>>;
-  template <typename BV>
-  bool OcTreeMeshDistanceFindCandidatesRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
-                                 const BVHModel<BV>* tree2, int root2,
-                                 const Transform3<S>& tf1, const Transform3<S>& tf2,
-                                 OcTreeMeshDistanceCandidateMultiMap<BV>* candidate_map) const;
-  template <typename BV>
   bool OcTreeMeshDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                  const BVHModel<BV>* tree2, int root2,
-                                 const Transform3<S>& tf1, const Transform3<S>& tf2) const;
+                                 const Transform3<S>& tf2) const;
 
 
   template <typename BV>
   bool OcTreeMeshIntersectRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                   const BVHModel<BV>* tree2, int root2,
-                                  const Transform3<S>& tf1, const Transform3<S>& tf2) const;
+                                  const Transform3<S>& tf2) const;
 
   bool OcTreeDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                              const OcTree<S>* tree2, const typename OcTree<S>::OcTreeNode* root2, const AABB<S>& bv2,
