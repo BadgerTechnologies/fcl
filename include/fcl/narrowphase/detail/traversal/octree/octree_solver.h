@@ -156,6 +156,11 @@ private:
   template <typename BV>
   bool OcTreeMeshDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                  const BVHModel<BV>* tree2, int root2,
+                                 const Transform3<S>& tf2, bool stop_after_first_distance=false) const;
+
+  template <typename BV>
+  bool OcTreeMeshDistanceBreadthSearch(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& root_bv1,
+                                 const BVHModel<BV>* tree2, int root2,
                                  const Transform3<S>& tf2) const;
 
 

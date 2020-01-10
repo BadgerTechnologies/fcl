@@ -124,6 +124,9 @@ public:
              Vector3<S>* P = nullptr,
              Vector3<S>* Q = nullptr) const;
 
+  /// @brief the upper-bound distance between two RSS
+  S distanceUpper(const RSS<S>& other) const;
+
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 };

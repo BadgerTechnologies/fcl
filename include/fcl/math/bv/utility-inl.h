@@ -1065,6 +1065,62 @@ public:
 };
 
 //==============================================================================
+/// @brief Upper bound distance of a bounding volume of type BV1 in configuration I to a
+/// bounding volume of type BV2 in tf2 configuration.
+template <typename S, typename BV1, typename BV2>
+class FCL_EXPORT DistanceUpperBVImpl
+{
+public:
+  static S run(const BV1& bv1, const BV2& bv2, const Transform3<S>& tf2)
+  {
+    // Default is to treat both as spheres.
+    return (bv1.center() - tf2 * bv2.center()).norm() + bv1.radius() + bv2.radius();
+  }
+};
+
+template <typename S>
+class FCL_EXPORT DistanceUpperBVImpl<S, RSS<S>, RSS<S>>
+{
+public:
+  static S run(const RSS<S>& bv1, const RSS<S>& bv2, const Transform3<S>& tf2)
+  {
+    RSS<S> bv2_converted;
+    convertBV(bv2, tf2, bv2_converted);
+    return bv1.distanceUpper(bv2_converted);
+  }
+};
+
+template <typename S>
+class FCL_EXPORT DistanceUpperBVImpl<S, RSS<S>, OBBRSS<S>>
+{
+public:
+  static S run(const RSS<S>& bv1, const OBBRSS<S>& bv2, const Transform3<S>& tf2)
+  {
+    return DistanceUpperBVImpl<S, RSS<S>, RSS<S>>::run(bv1, bv2.rss, tf2);
+  }
+};
+
+template <typename S>
+class FCL_EXPORT DistanceUpperBVImpl<S, OBBRSS<S>, RSS<S>>
+{
+public:
+  static S run(const OBBRSS<S>& bv1, const RSS<S>& bv2, const Transform3<S>& tf2)
+  {
+    return DistanceUpperBVImpl<S, RSS<S>, RSS<S>>::run(bv1.rss, bv2, tf2);
+  }
+};
+
+template <typename S>
+class FCL_EXPORT DistanceUpperBVImpl<S, OBBRSS<S>, OBBRSS<S>>
+{
+public:
+  static S run(const OBBRSS<S>& bv1, const OBBRSS<S>& bv2, const Transform3<S>& tf2)
+  {
+    return DistanceUpperBVImpl<S, RSS<S>, RSS<S>>::run(bv1.rss, bv2.rss, tf2);
+  }
+};
+
+//==============================================================================
 } // namespace detail
 //==============================================================================
 
@@ -1103,6 +1159,19 @@ typename BV1::S distanceBV(
 
   return detail::DistanceBVImpl<typename BV1::S, BV1, BV2>::run(bv1, bv2, tf2);
 }
+
+//==============================================================================
+template <typename BV1, typename BV2>
+FCL_EXPORT
+typename BV1::S distanceUpperBV(
+    const BV1& bv1, const BV2& bv2, const Transform3<typename BV2::S>& tf2)
+{
+  static_assert(std::is_same<typename BV1::S, typename BV2::S>::value,
+                "The scalar type of BV1 and BV2 should be the same");
+
+  return detail::DistanceUpperBVImpl<typename BV1::S, BV1, BV2>::run(bv1, bv2, tf2);
+}
+
 
 } // namespace fcl
 

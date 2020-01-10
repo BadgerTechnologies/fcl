@@ -42,6 +42,10 @@
 
 #include "fcl/geometry/shape/utility.h"
 
+#include <deque>
+#include <queue>
+#include <set>
+
 namespace fcl
 {
 
@@ -130,9 +134,9 @@ void OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistance(
   drequest = &request_;
   dresult = &result_;
 
-  OcTreeMeshDistanceRecurse(tree1, tree1->getRoot(), tree1->getRootBV(),
-                            tree2, 0,
-                            tf1.inverse() * tf2);
+  OcTreeMeshDistanceBreadthSearch(tree1, tree1->getRoot(), tree1->getRootBV(),
+                                  tree2, 0,
+                                  tf1.inverse() * tf2);
 }
 
 //==============================================================================
@@ -170,9 +174,9 @@ void OcTreeSolver<NarrowPhaseSolver>::MeshOcTreeDistance(
   drequest = &request_;
   dresult = &result_;
 
-  OcTreeMeshDistanceRecurse(tree2, tree2->getRoot(), tree2->getRootBV(),
-                            tree1, 0,
-                            tf2.inverse() * tf1);
+  OcTreeMeshDistanceBreadthSearch(tree2, tree2->getRoot(), tree2->getRootBV(),
+                                  tree1, 0,
+                                  tf2.inverse() * tf1);
 }
 
 //==============================================================================
@@ -485,7 +489,8 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeShapeIntersectRecurse(const OcTree<S
 // to some other bounding volume
 template <typename S, typename BV2>
 inline S distanceOctomapRSS(const AABB<S>& aabb1, const Vector3<S>& bv1_center,
-                            const BV2& bv2, const Transform3<S>& tf2, const Vector3<S>& bv2_center)
+                            const BV2& bv2, const Transform3<S>& tf2, const Vector3<S>& bv2_center,
+                            S* upper_dist=NULL)
 {
   static Matrix3<S> axis_yzx = (Matrix3<S>() << 0, 0, 1,
                                                 1, 0, 0,
@@ -522,7 +527,233 @@ inline S distanceOctomapRSS(const AABB<S>& aabb1, const Vector3<S>& bv1_center,
     rss.axis = axis_xyz;
   }
   rss.setToFromCenter(bv1_center);
+  if (upper_dist)
+  {
+    *upper_dist = distanceUpperBV(rss, bv2, tf2);
+  }
   return distanceBV(rss, bv2, tf2);
+}
+
+template <typename S>
+class OcTreeMeshDistanceQueueEntry
+{
+public:
+  S dist;
+  const typename OcTree<S>::OcTreeNode* octree_node;
+  AABB<S> octree_node_aabb;
+  int bvh_node;
+  bool operator()(const OcTreeMeshDistanceQueueEntry<S>& lhs, const OcTreeMeshDistanceQueueEntry<S>& rhs) const
+  {
+    bool less=false;
+    if (lhs.dist < rhs.dist)
+    {
+      less = true;
+    }
+    else if(lhs.dist == rhs.dist)
+    {
+      if (lhs.bvh_node < rhs.bvh_node)
+      {
+        less = true;
+      }
+      else if(lhs.bvh_node == rhs.bvh_node)
+      {
+        if (lhs.octree_node < rhs.octree_node)
+        {
+          less = true;
+        }
+      }
+    }
+    return less;
+  }
+};
+
+template <typename NarrowPhaseSolver>
+template <typename BV>
+bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceBreadthSearch(
+    const OcTree<S>* tree1,
+    const typename OcTree<S>::OcTreeNode* root1,
+    const AABB<S>& root_bv1,
+    const BVHModel<BV>* tree2,
+    int root2,
+    const Transform3<S>& tf2) const
+{
+  using QueueEntry = OcTreeMeshDistanceQueueEntry<S>;
+  std::set<QueueEntry, QueueEntry> queue;
+
+  // nothing to do if the tree is empty or completely unoccupied
+  if(!tree1 || !root1 || !tree1->isNodeOccupied(root1)) return false;
+
+  // First dive deep to get a good (greedy) min_distance.
+  // This is necessary to keep from spending forever building the queue when
+  // the initial min_distance is really large.
+  // Stop after the first primative-to-primative distance calculation.
+//  OcTreeMeshDistanceRecurse(tree1, root1, root_bv1, tree2, root2, tf2, true);
+  size_t n=0;
+
+  const BV& root_bv2 = tree2->getBV(root2).bv;
+  QueueEntry init_entry;
+  init_entry.octree_node = root1;
+  init_entry.octree_node_aabb = root_bv1;
+  init_entry.bvh_node = root2;
+  init_entry.dist = distanceOctomapRSS(root_bv1, root_bv1.center(),
+                                       root_bv2, tf2, tf2 * root_bv2.center());
+  queue.insert(init_entry);
+
+  while(!queue.empty() && queue.begin()->dist < dresult->min_distance)
+  {
+    ++n;
+    // There is at least one remaining queue entry with a lower bound on
+    // distance better than our current result. Get the best (closest)
+    // remaining entry and remove it from the map. Either update the result if
+    // the entry was a leaf in both trees, or add any new candidate entries of
+    // the children.
+    const typename OcTree<S>::OcTreeNode* octree_node;
+    AABB<S> octree_node_aabb;
+    int bvh_node;
+    {
+      QueueEntry search_point;
+      search_point.octree_node = NULL;
+      search_point.bvh_node = 0;
+      if (n<100)
+      {
+        // for the first 100 loops, do depth-first.
+        // then do directed search to finish up.
+        search_point.dist = dresult->min_distance;
+      }
+      else
+      {
+        search_point.dist = -std::numeric_limits<S>::max();
+      }
+      auto it = queue.lower_bound(search_point);
+      if (it == queue.end())
+      {
+        it = queue.begin();
+      }
+      const QueueEntry& queue_entry = *(it);
+      octree_node = queue_entry.octree_node;
+      octree_node_aabb = queue_entry.octree_node_aabb;
+      bvh_node = queue_entry.bvh_node;
+      queue.erase(it);
+    }
+    const BV& bv2 = tree2->getBV(bvh_node).bv;
+    S bv1_radius = octree_node_aabb.radius();
+    S bv2_radius = bv2.radius();
+
+    if(!tree1->nodeHasChildren(octree_node) && tree2->getBV(bvh_node).isLeaf())
+    {
+      // this map entry is terminal, update the result based on the primatives
+      Box<S> box;
+      Transform3<S> box_tf;
+      constructBox(octree_node_aabb, Transform3<S>::Identity(), box, box_tf);
+
+      int primitive_id = tree2->getBV(bvh_node).primitiveId();
+      const Triangle& tri_id = tree2->tri_indices[primitive_id];
+      const Vector3<S>& p1 = tree2->vertices[tri_id[0]];
+      const Vector3<S>& p2 = tree2->vertices[tri_id[1]];
+      const Vector3<S>& p3 = tree2->vertices[tri_id[2]];
+
+      S dist;
+      Vector3<S> closest_p1, closest_p2;
+      solver->shapeTriangleDistance(box, box_tf, p1, p2, p3, tf2, &dist, &closest_p1, &closest_p2);
+      dresult->primative_distance_calculations++;
+      if (dist < dresult->min_distance)
+      {
+        // only allocate dynamic memory in the case where a new min was found
+        std::shared_ptr<Box<S>> box_ptr(new Box<S>(box));
+        std::shared_ptr<TriangleP<S>> triangle(new TriangleP<S>(p1, p2, p3));
+        dresult->update(dist, tree1, tree2, octree_node - tree1->getRoot(), primitive_id,
+                        closest_p1, closest_p2, box_ptr, box_tf, triangle, tf2);
+      }
+
+      if (drequest->isSatisfied(*dresult))
+      {
+        // We are done, break the loop
+        break;
+      }
+      // Note: we could erase any entries that are after the new result here.
+      // However, it isn't clear that would have a net performance benefit.
+    }
+    // Split the octree node if the BV is a leaf or if the octree node is an
+    // inner node with larger radius than the other BV
+    else if(tree2->getBV(bvh_node).isLeaf() || (bv1_radius > bv2_radius && tree1->nodeHasChildren(octree_node)))
+    {
+      // Add the (occupied) children of the octree node into the queue
+      const Vector3<S> bv2_center(tf2 * bv2.center());
+      for(unsigned int i = 0; i < 8; ++i)
+      {
+        if(tree1->nodeChildExists(octree_node, i))
+        {
+          const typename OcTree<S>::OcTreeNode* child = tree1->getNodeChild(octree_node, i);
+          if(tree1->isNodeOccupied(child))
+          {
+            QueueEntry new_entry;
+            new_entry.octree_node = child;
+            computeChildBV(octree_node_aabb, i, new_entry.octree_node_aabb);
+            new_entry.bvh_node = bvh_node;
+            const Vector3<S> bv1_center(new_entry.octree_node_aabb.center());
+            S upper_bound;
+            new_entry.dist = distanceOctomapRSS(new_entry.octree_node_aabb,
+                                                bv1_center,
+                                                bv2, tf2, bv2_center,
+                                                &upper_bound);
+            dresult->bv_distance_calculations++;
+            if (dresult->min_distance > upper_bound)
+            {
+              dresult->min_distance = upper_bound;
+            }
+            // Its pointless to add entries to the queue that can't be better
+            // than the current result (because they would never get used).
+            if (new_entry.dist < dresult->min_distance)
+            {
+              queue.insert(new_entry);
+            }
+          }
+        }
+      }
+    }
+    else
+    {
+      // The octree node is a leaf, break up the bvh node and add to the map.
+      const Vector3<S> bv1_center(octree_node_aabb.center());
+      QueueEntry new_entry;
+      const BV* child_bv2;
+      Vector3<S> child_bv2_center;
+      S upper_bound;
+      new_entry.octree_node = octree_node;
+      new_entry.octree_node_aabb = octree_node_aabb;
+      new_entry.bvh_node = tree2->getBV(bvh_node).leftChild();
+      child_bv2 = &tree2->getBV(new_entry.bvh_node).bv;
+      child_bv2_center.noalias() = tf2 * child_bv2->center();
+      new_entry.dist = distanceOctomapRSS(octree_node_aabb, bv1_center,
+                                          *child_bv2, tf2, child_bv2_center,
+                                          &upper_bound);
+      dresult->bv_distance_calculations++;
+      if (new_entry.dist < dresult->min_distance)
+      {
+        queue.insert(new_entry);
+      }
+      if (dresult->min_distance > upper_bound)
+      {
+        dresult->min_distance = upper_bound;
+      }
+      new_entry.bvh_node = tree2->getBV(bvh_node).rightChild();
+      child_bv2 = &tree2->getBV(new_entry.bvh_node).bv;
+      child_bv2_center.noalias() = tf2 * child_bv2->center();
+      new_entry.dist = distanceOctomapRSS(octree_node_aabb, bv1_center,
+                                          *child_bv2, tf2, child_bv2_center,
+                                          &upper_bound);
+      dresult->bv_distance_calculations++;
+      if (new_entry.dist < dresult->min_distance)
+      {
+        queue.insert(new_entry);
+      }
+      if (dresult->min_distance > upper_bound)
+      {
+        dresult->min_distance = upper_bound;
+      }
+    }
+  }
+  return dresult->min_distance >= 0.0;
 }
 
 //==============================================================================
@@ -530,7 +761,7 @@ template <typename NarrowPhaseSolver>
 template <typename BV>
 bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                const BVHModel<BV>* tree2, int root2,
-                               const Transform3<S>& tf2) const
+                               const Transform3<S>& tf2, bool stop_on_first_distance) const
 {
   if(!tree1->nodeHasChildren(root1) && tree2->getBV(root2).isLeaf())
   {
@@ -559,7 +790,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
                         closest_p1, closest_p2, box_ptr, box_tf, triangle, tf2);
       }
 
-      return drequest->isSatisfied(*dresult);
+      return stop_on_first_distance || drequest->isSatisfied(*dresult);
     }
     else
       return false;
@@ -609,7 +840,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
           if(distances[i] < dresult->min_distance)
           {
             // Possible a better result is below, descend
-            if(OcTreeMeshDistanceRecurse(tree1, children[i], child_bvs[i], tree2, root2, tf2))
+            if(OcTreeMeshDistanceRecurse(tree1, children[i], child_bvs[i], tree2, root2, tf2, stop_on_first_distance))
               return true;
           }
           else
@@ -652,7 +883,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
       {
         if(d[i] < dresult->min_distance)
         {
-          if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf2))
+          if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf2, stop_on_first_distance))
             return true;
         }
       }
@@ -663,7 +894,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
       {
         if(d[i] < dresult->min_distance)
         {
-          if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf2))
+          if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf2, stop_on_first_distance))
             return true;
         }
       }

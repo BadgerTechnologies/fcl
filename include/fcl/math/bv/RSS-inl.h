@@ -40,6 +40,8 @@
 
 #include "fcl/math/bv/RSS.h"
 
+#include <algorithm>
+
 namespace fcl
 {
 
@@ -451,6 +453,42 @@ S RSS<S>::distance(
   S dist = rectDistance(R, T, l, other.l, P, Q);
   dist -= (r + other.r);
   return (dist < (S)0.0) ? (S)0.0 : dist;
+}
+
+//==============================================================================
+template <typename S>
+S RSS<S>::distanceUpper(const RSS<S>& other) const
+{
+  const Vector3<S> side0(axis.col(0) * l[0]);
+  const Vector3<S> side1(axis.col(1) * l[1]);
+  const Vector3<S> other_side0(other.axis.col(0) * other.l[0]);
+  const Vector3<S> other_side1(other.axis.col(1) * other.l[1]);
+  const Vector3<S> corners[4] =
+  {
+    To,
+    To + side0,
+    To + side1,
+    To + side0 + side1
+  };
+  const Vector3<S> other_corners[4] =
+  {
+    other.To,
+    other.To + side0,
+    other.To + side1,
+    other.To + side0 + side1
+  };
+  // Store dists to leverage SIMD
+  S squared_dists[4*4];
+  for (int i=0; i<4; ++i)
+  {
+    for (int j=0; j<4; ++j)
+    {
+      squared_dists[i*4 + j] = (corners[i] - other_corners[j]).squaredNorm();
+    }
+  }
+  const S max_squared_dist = *std::max_element(&squared_dists[0], &squared_dists[16]);
+
+  return std::sqrt(max_squared_dist) + r + other.r;
 }
 
 //==============================================================================
