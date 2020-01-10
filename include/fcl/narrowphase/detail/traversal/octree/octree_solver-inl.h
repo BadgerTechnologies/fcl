@@ -549,6 +549,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
       S dist;
       Vector3<S> closest_p1, closest_p2;
       solver->shapeTriangleDistance(box, box_tf, p1, p2, p3, tf2, &dist, &closest_p1, &closest_p2);
+      dresult->primative_distance_calculations++;
       if (dist < dresult->min_distance)
       {
         // only allocate dynamic memory in the case where a new min was found
@@ -587,6 +588,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
           computeChildBV(bv1, i, child_bvs[nchildren]);
           distances[nchildren] = distanceOctomapRSS(child_bvs[nchildren], child_bvs[nchildren].center(),
                                                     bv2, tf2, bv2_center);
+          dresult->bv_distance_calculations++;
           if (distances[nchildren] < min_distance)
           {
             min_distance = distances[nchildren];
@@ -642,6 +644,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
     S d[2] = {
       distanceOctomapRSS(bv1, bv1_center, *bv2[0], tf2, tf2 * bv2[0]->center()),
       distanceOctomapRSS(bv1, bv1_center, *bv2[1], tf2, tf2 * bv2[1]->center())};
+    dresult->bv_distance_calculations+=2;
     // Go left first if it is closer, otherwise go right first
     if (d[0] < d[1])
     {

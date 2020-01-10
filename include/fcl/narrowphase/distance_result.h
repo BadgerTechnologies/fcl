@@ -93,6 +93,9 @@ public:
   std::shared_ptr<CollisionGeometry<S>> primitive2;
   Transform3<S> tf2;
 
+  size_t primative_distance_calculations;
+  size_t bv_distance_calculations;
+
   /// @brief invalid contact primitive information
   static const int NONE = -1;
   

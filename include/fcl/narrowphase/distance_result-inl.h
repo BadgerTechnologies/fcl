@@ -55,7 +55,9 @@ DistanceResult<S>::DistanceResult(S min_distance_)
     o1(nullptr),
     o2(nullptr),
     b1(NONE),
-    b2(NONE)
+    b2(NONE),
+    primative_distance_calculations(0),
+    bv_distance_calculations(0)
 {
   // Do nothing
 }
