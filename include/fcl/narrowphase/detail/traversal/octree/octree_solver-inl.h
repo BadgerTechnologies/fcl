@@ -633,7 +633,6 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
   else
   {
     const Vector3<S> bv1_center(bv1.center());
-    const S bv1_radius(bv1.radius());
     int children[2] = {
       tree2->getBV(root2).leftChild(),
       tree2->getBV(root2).rightChild()};
