@@ -640,8 +640,8 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
       &tree2->getBV(children[0]).bv,
       &tree2->getBV(children[1]).bv};
     S d[2] = {
-      distanceOctomapRSS(bv1, bv1_center, *bv2[0], tf2, bv2[0]->center()),
-      distanceOctomapRSS(bv1, bv1_center, *bv2[1], tf2, bv2[1]->center())};
+      distanceOctomapRSS(bv1, bv1_center, *bv2[0], tf2, tf2 * bv2[0]->center()),
+      distanceOctomapRSS(bv1, bv1_center, *bv2[1], tf2, tf2 * bv2[1]->center())};
     // Go left first if it is closer, otherwise go right first
     if (d[0] < d[1])
     {
