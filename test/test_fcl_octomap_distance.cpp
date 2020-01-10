@@ -209,7 +209,7 @@ void octomap_distance_test_BVH(std::size_t n, double resolution)
     S dist1b = std::numeric_limits<S>::max();
     test::defaultDistanceFunction(&obj1, &obj2, &cdata, dist1);
     test::defaultDistanceFunction(&obj2, &obj1, &cdata1b, dist1b);
-    EXPECT_TRUE(std::abs(dist1 - dist1b) < 1e-6);
+    EXPECT_NEAR(dist1, dist1b, 1e-6);
 
 
     std::vector<CollisionObject<S>*> boxes;
@@ -234,7 +234,7 @@ void octomap_distance_test_BVH(std::size_t n, double resolution)
     }
     delete manager;
 
-    EXPECT_TRUE(std::abs(dist1 - dist2) < 1e-6);
+    EXPECT_NEAR(dist1, dist2, 1e-6);
   }
 }
 
@@ -306,9 +306,9 @@ void octomap_distance_test(S env_scale, std::size_t env_size, bool use_mesh, boo
   std::cout << cdata.result.min_distance << " " << cdata3.result.min_distance << " " << cdata2.result.min_distance << std::endl;
 
   if(cdata.result.min_distance < 0)
-    EXPECT_TRUE(cdata2.result.min_distance <= 0);
+    EXPECT_LE(cdata2.result.min_distance, 0);
   else
-    EXPECT_TRUE(std::abs(cdata.result.min_distance - cdata2.result.min_distance) < 1e-3);
+    EXPECT_NEAR(cdata.result.min_distance, cdata2.result.min_distance, 1e-3);
 
   delete manager;
   delete manager2;
