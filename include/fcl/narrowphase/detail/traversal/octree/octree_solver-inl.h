@@ -113,7 +113,8 @@ void OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshIntersect(
 
   OcTreeMeshIntersectRecurse(tree1, tree1->getRoot(), tree1->getRootBV(),
                              tree2, 0,
-                             tf1.inverse() * tf2);
+                             tf1.inverse() * tf2,
+                             &tree1->getRegionOfInterest());
 }
 
 //==============================================================================
@@ -132,7 +133,8 @@ void OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistance(
 
   OcTreeMeshDistanceRecurse(tree1, tree1->getRoot(), tree1->getRootBV(),
                             tree2, 0,
-                            tf1.inverse() * tf2);
+                            tf1.inverse() * tf2,
+                            &tree1->getRegionOfInterest());
 }
 
 //==============================================================================
@@ -147,12 +149,7 @@ void OcTreeSolver<NarrowPhaseSolver>::MeshOcTreeIntersect(
     CollisionResult<S>& result_) const
 
 {
-  crequest = &request_;
-  cresult = &result_;
-
-  OcTreeMeshIntersectRecurse(tree2, tree2->getRoot(), tree2->getRootBV(),
-                             tree1, 0,
-                             tf2.inverse() * tf1);
+  OcTreeMeshIntersect(tree2, tree1, tf2, tf1, request_, result_);
 }
 
 //==============================================================================
@@ -167,12 +164,7 @@ void OcTreeSolver<NarrowPhaseSolver>::MeshOcTreeDistance(
     const DistanceRequest<S>& request_,
     DistanceResult<S>& result_) const
 {
-  drequest = &request_;
-  dresult = &result_;
-
-  OcTreeMeshDistanceRecurse(tree2, tree2->getRoot(), tree2->getRootBV(),
-                            tree1, 0,
-                            tf2.inverse() * tf1);
+  OcTreeMeshDistance(tree2, tree1, tf2, tf1, request_, result_);
 }
 
 //==============================================================================
@@ -525,13 +517,68 @@ inline S distanceOctomapRSS(const AABB<S>& aabb1, const Vector3<S>& bv1_center,
   return distanceBV(rss, bv2, tf2);
 }
 
+// return -1 if bv1 out of roi, 1 if in, and 0 if on.
+template <typename S>
+static inline int checkROI(const AABB<S>& bv1, const std::vector<Halfspace<S>>* roi)
+{
+  Vector3<S> bv1_center = bv1.center();
+  Vector3<S> bv1_diag = bv1.max_ - bv1.min_;
+  bool all_in = true;
+
+  for (unsigned int i=0; i<roi->size(); ++i)
+  {
+    const Halfspace<S>& region((*roi)[i]);
+    Vector3<S> normal = region.n;
+    Vector3<S> n_dot_d(normal[0] * bv1_diag[0], normal[1] * bv1_diag[1], normal[2] * bv1_diag[2]);
+    Vector3<S> n_dot_d_abs = n_dot_d.cwiseAbs();
+    S bv1_extent = 0.5 * (n_dot_d_abs[0] + n_dot_d_abs[1] + n_dot_d_abs[2]);
+    S center_dist = region.signedDistance(bv1_center);
+    // If the distance from the center of the AABB in bv1 to the halfspace is
+    // bigger than the maximum extent of the AABB, the AABB is outside the
+    // boundary of the halfspace. If the negative of the center distance is
+    // bigger than the extent, the whole AABB is inside the halfspace.
+    // Otherwise, its on the boundary.
+    bool out = (center_dist > bv1_extent);
+    bool in = (-center_dist > bv1_extent);
+    if (out)
+    {
+      return -1;
+    }
+    all_in = (all_in && in);
+  }
+  if (all_in)
+  {
+    return 1;
+  }
+  return 0;
+}
+
 //==============================================================================
 template <typename NarrowPhaseSolver>
 template <typename BV>
 bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                const BVHModel<BV>* tree2, int root2,
-                               const Transform3<S>& tf2) const
+                               const Transform3<S>& tf2,
+                               const std::vector<Halfspace<S>>* roi) const
 {
+  // First check region of interest.
+  if (roi)
+  {
+    int rv = checkROI<S>(bv1, roi);
+    if (rv == -1)
+    {
+      // this octomap region is entirely out of the region of interest
+      return false;
+    }
+    if (rv == 1)
+    {
+      // this octomap region is entirely inside the region of interest.
+      // There is no need to check any sub-region. Null out the roi for
+      // subsequent recursive calls.
+      roi = nullptr;
+    }
+  }
+
   if(!tree1->nodeHasChildren(root1) && tree2->getBV(root2).isLeaf())
   {
     if(tree1->isNodeOccupied(root1))
@@ -609,7 +656,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
           if(distances[i] < dresult->min_distance)
           {
             // Possible a better result is below, descend
-            if(OcTreeMeshDistanceRecurse(tree1, children[i], child_bvs[i], tree2, root2, tf2))
+            if(OcTreeMeshDistanceRecurse(tree1, children[i], child_bvs[i], tree2, root2, tf2, roi))
               return true;
           }
           else
@@ -652,7 +699,9 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
       {
         if(d[i] < dresult->min_distance)
         {
-          if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf2))
+          // Because we descend the octree first, there is no need to check the
+          // ROI when descending the mesh.
+          if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf2, nullptr))
             return true;
         }
       }
@@ -663,7 +712,9 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshDistanceRecurse(const OcTree<S>*
       {
         if(d[i] < dresult->min_distance)
         {
-          if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf2))
+          // Because we descend the octree first, there is no need to check the
+          // ROI when descending the mesh.
+          if(OcTreeMeshDistanceRecurse(tree1, root1, bv1, tree2, children[i], tf2, nullptr))
             return true;
         }
       }
@@ -687,8 +738,27 @@ template <typename NarrowPhaseSolver>
 template <typename BV>
 bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshIntersectRecurse(const OcTree<S>* tree1, const typename OcTree<S>::OcTreeNode* root1, const AABB<S>& bv1,
                                 const BVHModel<BV>* tree2, int root2,
-                                const Transform3<S>& tf2) const
+                                const Transform3<S>& tf2,
+                                const std::vector<Halfspace<S>>* roi) const
 {
+  // First check region of interest.
+  if (roi)
+  {
+    int rv = checkROI<S>(bv1, roi);
+    if (rv == -1)
+    {
+      // this octomap region is entirely out of the region of interest
+      return false;
+    }
+    if (rv == 1)
+    {
+      // this octomap region is entirely inside the region of interest.
+      // There is no need to check any sub-region. Null out the roi for
+      // subsequent recursive calls.
+      roi = nullptr;
+    }
+  }
+
   if(!root1)
   {
     if(tree2->getBV(root2).isLeaf())
@@ -723,10 +793,10 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshIntersectRecurse(const OcTree<S>
     }
     else
     {
-      if(OcTreeMeshIntersectRecurse(tree1, root1, bv1, tree2, tree2->getBV(root2).leftChild(), tf2))
+      if(OcTreeMeshIntersectRecurse(tree1, root1, bv1, tree2, tree2->getBV(root2).leftChild(), tf2, roi))
         return true;
 
-      if(OcTreeMeshIntersectRecurse(tree1, root1, bv1, tree2, tree2->getBV(root2).rightChild(), tf2))
+      if(OcTreeMeshIntersectRecurse(tree1, root1, bv1, tree2, tree2->getBV(root2).rightChild(), tf2, roi))
         return true;
 
       return false;
@@ -849,7 +919,7 @@ bool OcTreeSolver<NarrowPhaseSolver>::OcTreeMeshIntersectRecurse(const OcTree<S>
           AABB<S> child_bv;
           computeChildBV(bv1, i, child_bv);
 
-          if(OcTreeMeshIntersectRecurse(tree1, child, child_bv, tree2, root2, tf2))
+          if(OcTreeMeshIntersectRecurse(tree1, child, child_bv, tree2, root2, tf2, roi))
             return true;
         }
       }
@@ -858,17 +928,17 @@ else if(!tree2->isFree() && crequest->enable_cost)
         AABB<S> child_bv;
         computeChildBV(bv1, i, child_bv);
 
-        if(OcTreeMeshIntersectRecurse(tree1, nullptr, child_bv, tree2, root2, tf2))
+        if(OcTreeMeshIntersectRecurse(tree1, nullptr, child_bv, tree2, root2, tf2, roi))
           return true;
       }
     }
   }
   else
   {
-    if(OcTreeMeshIntersectRecurse(tree1, root1, bv1, tree2, tree2->getBV(root2).leftChild(), tf2))
+    if(OcTreeMeshIntersectRecurse(tree1, root1, bv1, tree2, tree2->getBV(root2).leftChild(), tf2, roi))
       return true;
 
-    if(OcTreeMeshIntersectRecurse(tree1, root1, bv1, tree2, tree2->getBV(root2).rightChild(), tf2))
+    if(OcTreeMeshIntersectRecurse(tree1, root1, bv1, tree2, tree2->getBV(root2).rightChild(), tf2, roi))
       return true;
 
   }

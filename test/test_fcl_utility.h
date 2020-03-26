@@ -252,7 +252,7 @@ template <typename S>
 void generateBoxesFromOctomapMesh(std::vector<CollisionObject<S>*>& env, OcTree<S>& tree);
 
 /// @brief Generate an octree
-octomap::OcTree* generateOcTree(double resolution = 0.1);
+octomap::OcTree* generateOcTree(double resolution = 0.1, bool negative_x_only=false, bool non_negative_x_only=false);
 
 #endif
 
@@ -728,18 +728,18 @@ void generateBoxesFromOctomapMesh(std::vector<CollisionObject<S>*>& boxes, OcTre
 }
 
 //==============================================================================
-inline octomap::OcTree* generateOcTree(double resolution)
+inline octomap::OcTree* generateOcTree(double resolution, bool negative_x_only, bool non_negative_x_only)
 {
   octomap::OcTree* tree = new octomap::OcTree(resolution);
 
   // insert some measurements of occupied cells
-  for(int x = -20; x < 20; x++)
+  for(int x = (non_negative_x_only ? 0 : -20); x < (negative_x_only ? 0 : 20); x++)
   {
     for(int y = -20; y < 20; y++)
     {
       for(int z = -20; z < 20; z++)
       {
-        tree->setNodeValue(octomap::point3d(x * 0.05, y * 0.05, z * 0.05), tree->getClampingThresMaxLog());
+        tree->setNodeValue(octomap::point3d(x * 0.05 + .025, y * 0.05 + .025, z * 0.05 + .025), tree->getClampingThresMaxLog());
       }
     }
   }

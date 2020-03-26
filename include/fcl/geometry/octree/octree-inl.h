@@ -296,6 +296,25 @@ void computeChildBV(const AABB<S>& root_bv, unsigned int i, AABB<S>& child_bv)
   }
 }
 
+//==============================================================================
+template <typename S>
+const std::vector<Halfspace<S>>& OcTree<S>::getRegionOfInterest() const
+{
+  return roi;
+}
+
+template <typename S>
+void OcTree<S>::clearRegionOfInterest()
+{
+  roi.clear();
+}
+
+template <typename S>
+void OcTree<S>::addToRegionOfInterest(const Halfspace<S>& region)
+{
+  roi.push_back(region);
+}
+
 } // namespace fcl
 
 #endif

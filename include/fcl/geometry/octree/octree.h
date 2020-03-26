@@ -44,10 +44,12 @@
 
 #include <memory>
 #include <array>
+#include <vector>
 
 #include <octomap/octomap.h>
 #include "fcl/math/bv/AABB.h"
 #include "fcl/narrowphase/collision_object.h"
+#include "fcl/geometry/shape/halfspace.h"
 
 namespace fcl
 {
@@ -65,6 +67,21 @@ private:
   S occupancy_threshold_log_odds;
   S free_threshold_log_odds;
 
+  // The union of all the halfspaces in roi form the region of interest.
+  // Only regions of the octomap that are in or on all the halfspaces will be
+  // considered when doing collision/distance checks. This can be very useful
+  // for restricting which part of a large map is interesting to a particular
+  // query. Only halfspaces are currently used because it is very efficient to
+  // prune the search tree, as it is relatively cheap to test if all of a box
+  // is completely in or out of a halfspace, or it is on the boundary plane.
+  // Once an entire region of the tree is known to be out of the roi, it is
+  // skipped in a distance or collision check. Similarily, once an entire
+  // region of the tree is known to be in the roi, it is no longer necessary
+  // to test sub-regions to see if they are in the roi. Also, because
+  // halfspaces can be in any position and orientation (unlike most other
+  // shape primatives), halfspaces can be easily transformed using
+  // fcl::transform.
+  std::vector<Halfspace<S>> roi;
 public:
 
   typedef octomap::OcTreeNode OcTreeNode;
@@ -131,6 +148,15 @@ public:
 
   /// @brief return node type, it is an octree
   NODE_TYPE getNodeType() const;
+
+  /// @brief return the vector of halfspaces defining the region of interest
+  const std::vector<Halfspace<S>>& getRegionOfInterest() const;
+
+  /// @brief clear the region of interest
+  void clearRegionOfInterest();
+
+  /// @brief add the given halfspace to the region of interest
+  void addToRegionOfInterest(const Halfspace<S>& region);
 };
 
 using OcTreef = OcTree<float>;

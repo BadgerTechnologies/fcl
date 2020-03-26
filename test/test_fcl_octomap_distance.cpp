@@ -53,6 +53,8 @@
 
 #include "fcl_resources/config.h"
 
+#define NDEBUG 1
+
 using namespace fcl;
 
 /// @brief Octomap distance with an environment with 3 * env_size objects
@@ -60,7 +62,7 @@ template <typename S>
 void octomap_distance_test(S env_scale, std::size_t env_size, bool use_mesh, bool use_mesh_octomap, double resolution = 0.1);
 
 template<typename BV>
-void octomap_distance_test_BVH(std::size_t n, double resolution = 0.1);
+void octomap_distance_test_BVH(std::size_t n, double resolution = 0.1, bool negative_x_roi = false, bool non_negative_x_roi = false);
 
 template <typename S>
 void test_octomap_distance()
@@ -120,9 +122,13 @@ template <typename S>
 void test_octomap_bvh_rss_d_distance_rss()
 {
 #ifdef NDEBUG
-  octomap_distance_test_BVH<RSS<S>>(15);
+  octomap_distance_test_BVH<RSS<S>>(15, 0.1, false, false);
+  octomap_distance_test_BVH<RSS<S>>(15, 0.1, true, false);
+  octomap_distance_test_BVH<RSS<S>>(15, 0.1, false, true);
 #else
   octomap_distance_test_BVH<RSS<S>>(15, 1.0);
+  octomap_distance_test_BVH<RSS<S>>(15, 1.0, true, false);
+  octomap_distance_test_BVH<RSS<S>>(15, 1.0, false, true);
 #endif
 }
 
@@ -165,7 +171,7 @@ GTEST_TEST(FCL_OCTOMAP, test_octomap_bvh_kios_d_distance_kios)
 }
 
 template<typename BV>
-void octomap_distance_test_BVH(std::size_t n, double resolution)
+void octomap_distance_test_BVH(std::size_t n, double resolution, bool negative_x_roi, bool non_negative_x_roi)
 {
   using S = typename BV::S;
 
@@ -182,6 +188,20 @@ void octomap_distance_test_BVH(std::size_t n, double resolution)
   m1->endModel();
 
   OcTree<S>* tree = new OcTree<S>(std::shared_ptr<octomap::OcTree>(test::generateOcTree(resolution)));
+  OcTree<S>* boxes_tree = new OcTree<S>(std::shared_ptr<octomap::OcTree>(test::generateOcTree(resolution, negative_x_roi, non_negative_x_roi)));
+  if (negative_x_roi)
+  {
+    Vector3<S> normal(1.0, 0.0, 0.0);
+    Halfspace<S> negative_x(normal, -resolution/2.0);
+    tree->addToRegionOfInterest(negative_x);
+  }
+  if (non_negative_x_roi)
+  {
+    Vector3<S> normal(-1.0, 0.0, 0.0);
+    Halfspace<S> non_negative_x(normal, -resolution/2.0);
+    tree->addToRegionOfInterest(non_negative_x);
+  }
+
   std::shared_ptr<CollisionGeometry<S>> tree_ptr(tree);
 
   aligned_vector<Transform3<S>> transforms;
@@ -213,7 +233,7 @@ void octomap_distance_test_BVH(std::size_t n, double resolution)
 
 
     std::vector<CollisionObject<S>*> boxes;
-    test::generateBoxesFromOctomap(boxes, *tree);
+    test::generateBoxesFromOctomap(boxes, *boxes_tree);
     for(std::size_t j = 0; j < boxes.size(); ++j)
       boxes[j]->setTransform(tf2 * boxes[j]->getTransform());
 
